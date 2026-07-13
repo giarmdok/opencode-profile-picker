@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Input, Label, Select, Static
 
-from opencode_profile_picker.config.discover import PROVIDER_KEY_MAP
+from opencode_profile_picker.config.discover import PROVIDER_KEY_MAP, scan_env_for_keys
 from opencode_profile_picker.profiles.models import KeySet
 from opencode_profile_picker.profiles.operations import (
     add_key,
@@ -19,9 +21,14 @@ from opencode_profile_picker.profiles.operations import (
 class KeySetEditScreen(Screen[None]):
     """Screen for editing keys within a key set."""
 
+    BINDINGS = [
+        ("escape", "dismiss", "Back"),
+    ]
+
     CSS = """
     #keyset-edit-container {
-        width: 70;
+        width: 100%;
+        max-width: 70;
         height: auto;
         align: center middle;
         border: solid $primary;
@@ -89,6 +96,7 @@ class KeySetEditScreen(Screen[None]):
                     yield Input(placeholder="sk-...", id="value-input", password=True)
                 with Horizontal(id="keyset-edit-buttons"):
                     yield Button("Add Key", variant="primary", id="add-key-btn")
+                    yield Button("Scan Env", variant="default", id="scan-env-btn")
 
             yield Static("", id="keyset-edit-error")
 
@@ -109,7 +117,7 @@ class KeySetEditScreen(Screen[None]):
             return None
         if self._is_new:
             return None
-        return manager.store.key_sets.get(self._keyset_name or "")
+        return cast("KeySet | None", manager.store.key_sets.get(self._keyset_name or ""))
 
     def _refresh_table(self) -> None:
         table = self.query_one("#keys-table", DataTable)
@@ -196,6 +204,64 @@ class KeySetEditScreen(Screen[None]):
     @on(Button.Pressed, "#cancel-btn")
     def handle_cancel(self) -> None:
         self.dismiss()
+
+    @on(Button.Pressed, "#scan-env-btn")
+    def handle_scan_env(self) -> None:
+        """Scan environment for known API keys and import them."""
+        app = self.app
+        manager = getattr(app, "store_manager", None)
+        if manager is None:
+            return
+
+        # Ensure key set exists
+        if self._is_new:
+            try:
+                name_input = self.query_one("#name-input", Input)
+                name = name_input.value.strip()
+            except Exception:
+                return
+            if not name:
+                self._show_error("Enter a key set name first, then scan")
+                return
+            try:
+                add_key_set(manager.store, name)
+                self._keyset_name = name
+                self._is_new = False
+                manager.save()
+            except ValueError as e:
+                self._show_error(str(e))
+                return
+
+        ks = self._get_keyset()
+        if ks is None:
+            return
+
+        found = scan_env_for_keys()
+        if not found:
+            self._show_error("No known API keys found in environment")
+            return
+
+        imported = 0
+        skipped = 0
+        for provider, env_var in sorted(found.items()):
+            if env_var in ks.keys:
+                skipped += 1
+                continue
+            try:
+                add_key(ks, provider, env_var, None)  # env fallback — don't store the value
+                imported += 1
+            except ValueError:
+                skipped += 1
+
+        manager.save()
+        self._refresh_table()
+
+        msg_parts = []
+        if imported:
+            msg_parts.append(f"Imported {imported} key(s)")
+        if skipped:
+            msg_parts.append(f"Skipped {skipped} (already present)")
+        self._show_error(" | ".join(msg_parts))
 
     def _show_error(self, message: str) -> None:
         try:

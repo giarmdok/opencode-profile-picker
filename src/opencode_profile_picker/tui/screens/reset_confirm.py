@@ -11,9 +11,14 @@ from textual.widgets import Button, Label
 class ResetConfirmScreen(ModalScreen[bool]):
     """Modal screen confirming password reset with data loss warning."""
 
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+
     CSS = """
     #reset-container {
-        width: 50;
+        width: 100%;
+        max-width: 50;
         height: auto;
         align: center middle;
         border: solid $error;
@@ -55,3 +60,7 @@ class ResetConfirmScreen(ModalScreen[bool]):
             self.dismiss(True)
         else:
             self.dismiss(False)
+
+    def action_cancel(self) -> None:
+        """Cancel the dialog via keyboard."""
+        self.dismiss(False)

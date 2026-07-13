@@ -52,12 +52,26 @@ def get_omo_config_paths() -> list[Path]:
     """Return candidate paths for oh-my-opencode-slim config files.
 
     Returns paths in order of preference (jsonc preferred over json).
+    On Windows, checks both %APPDATA%\\opencode\\ and ~\\.config\\opencode\\.
     """
     config_dir = get_opencode_config_dir()
-    return [
+    paths = [
         config_dir / "oh-my-opencode-slim.jsonc",
         config_dir / "oh-my-opencode-slim.json",
     ]
+
+    # On Windows, also check ~/.config/opencode/ (many tools use this path)
+    if sys.platform == "win32":
+        dotconfig_dir = Path.home() / ".config" / "opencode"
+        if dotconfig_dir != config_dir:
+            paths.extend(
+                [
+                    dotconfig_dir / "oh-my-opencode-slim.jsonc",
+                    dotconfig_dir / "oh-my-opencode-slim.json",
+                ]
+            )
+
+    return paths
 
 
 def get_project_local_omo_path(cwd: Path | None = None) -> Path | None:

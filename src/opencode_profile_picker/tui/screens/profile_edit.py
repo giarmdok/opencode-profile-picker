@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
@@ -14,9 +16,14 @@ from opencode_profile_picker.profiles.operations import add_profile, update_prof
 class ProfileEditScreen(Screen[None]):
     """Screen for creating or editing a profile."""
 
+    BINDINGS = [
+        ("escape", "dismiss", "Back"),
+    ]
+
     CSS = """
     #edit-container {
-        width: 60;
+        width: 100%;
+        max-width: 60;
         height: auto;
         align: center middle;
         border: solid $primary;
@@ -104,8 +111,12 @@ class ProfileEditScreen(Screen[None]):
                 yield Button("Cancel", variant="default", id="cancel-btn")
 
     def on_mount(self) -> None:
-        """Pre-populate fields if editing."""
-        if not self._is_new and self._profile_name:
+        """Pre-populate fields if editing, and set initial focus."""
+        if self._is_new:
+            # Focus the name input so user can start typing immediately
+            with contextlib.suppress(Exception):
+                self.query_one("#name-input", Input).focus()
+        elif self._profile_name:
             app = self.app
             manager = getattr(app, "store_manager", None)
             if manager and self._profile_name in manager.store.profiles:
@@ -192,18 +203,22 @@ class ProfileEditScreen(Screen[None]):
         # Get preset and key set
         try:
             preset_select = self.query_one("#preset-select", Select)
-            keyset_select = self.query_one("#keyset-select", Select)
         except Exception:
+            self._show_error("No presets available")
             return
 
         preset = str(preset_select.value) if preset_select.value else ""
-        keyset = str(keyset_select.value) if keyset_select.value else ""
+
+        # Key set is optional — may not exist if none have been created yet
+        keyset = ""
+        try:
+            keyset_select = self.query_one("#keyset-select", Select)
+            keyset = str(keyset_select.value) if keyset_select.value else ""
+        except Exception:
+            pass  # No key sets exist yet, that's fine
 
         if not preset:
             self._show_error("Preset is required")
-            return
-        if not keyset:
-            self._show_error("Key set is required")
             return
 
         try:

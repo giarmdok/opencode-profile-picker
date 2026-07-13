@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import json5
 
@@ -16,7 +16,7 @@ def read_jsonc(path: Path) -> dict[str, Any] | None:
     """
     try:
         text = path.read_text(encoding="utf-8")
-        return json5.loads(text)
+        return cast("dict[str, Any]", json5.loads(text))
     except FileNotFoundError:
         return None
     except (ValueError, Exception):

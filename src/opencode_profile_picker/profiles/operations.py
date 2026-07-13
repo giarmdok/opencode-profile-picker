@@ -7,7 +7,7 @@ from opencode_profile_picker.profiles.models import KeyEntry, KeySet, Profile, P
 # ── Profile Operations ──────────────────────────────────────────────
 
 
-def add_profile(store: ProfileStore, name: str, preset: str, key_set: str) -> Profile:
+def add_profile(store: ProfileStore, name: str, preset: str, key_set: str = "") -> Profile:
     """Add a new profile to the store.
 
     Raises ValueError if a profile with the same name already exists.

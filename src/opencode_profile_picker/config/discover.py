@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -179,3 +180,19 @@ def detect_project_local_override(cwd: Path | None = None) -> str | None:
     if isinstance(preset, str):
         return preset
     return None
+
+
+def scan_env_for_keys() -> dict[str, str]:
+    """Scan the current environment for known API key variables.
+
+    Checks all env vars listed in PROVIDER_KEY_MAP and returns
+    a dict of {provider: env_var_name} for any that are set.
+
+    Does NOT capture the actual key values — only notes which
+    providers have keys available in the environment.
+    """
+    found: dict[str, str] = {}
+    for provider, env_var in PROVIDER_KEY_MAP.items():
+        if os.environ.get(env_var):
+            found[provider] = env_var
+    return found
