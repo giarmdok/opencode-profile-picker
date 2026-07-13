@@ -13,6 +13,8 @@ from opencode_profile_picker.profiles.operations import (
     list_profiles,
     validate_profiles,
 )
+from opencode_profile_picker.tui.screens.launch import LaunchScreen
+from opencode_profile_picker.tui.screens.profile_edit import ProfileEditScreen
 
 
 class MainScreen(Screen[None]):
@@ -24,6 +26,7 @@ class MainScreen(Screen[None]):
         ("d", "delete_profile", "Delete"),
         ("k", "key_sets", "Key Sets"),
         ("l", "launch", "Launch"),
+        ("enter", "edit_profile", "Edit"),
         ("q", "quit", "Quit"),
     ]
 
@@ -128,7 +131,7 @@ class MainScreen(Screen[None]):
         row_key = table.get_cell_at(table.cursor_coordinate)
         if row_key is None:
             return
-        self.app.push_screen("profile_edit", self._on_profile_edit_done)
+        self.app.push_screen(ProfileEditScreen(str(row_key)), self._on_profile_edit_done)
 
     def action_delete_profile(self) -> None:
         """Delete the selected profile."""
@@ -152,7 +155,7 @@ class MainScreen(Screen[None]):
         row_key = table.get_cell_at(table.cursor_coordinate)
         if row_key is None:
             return
-        self.app.push_screen("launch", self._on_launch_done)
+        self.app.push_screen(LaunchScreen(str(row_key)), self._on_launch_done)
 
     def _on_profile_edit_done(self, _result: object) -> None:
         self._refresh()

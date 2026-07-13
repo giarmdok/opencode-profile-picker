@@ -22,9 +22,14 @@ from opencode_profile_picker.presets.applier import apply_preset
 class LaunchScreen(Screen[None]):
     """Screen showing launch summary and executing the launch."""
 
+    BINDINGS = [
+        ("escape", "dismiss", "Back"),
+    ]
+
     CSS = """
     #launch-container {
-        width: 60;
+        width: 100%;
+        max-width: 60;
         height: auto;
         align: center middle;
         border: solid $primary;
@@ -150,20 +155,20 @@ class LaunchScreen(Screen[None]):
         config_paths = get_omo_config_paths()
         for path in config_paths:
             if path.exists():
-                result = apply_preset(path, profile.preset)
-                if not result.success:
+                preset_result = apply_preset(path, profile.preset)
+                if not preset_result.success:
                     # Warn but continue
                     pass
                 break
 
         # Build env and launch
         env = build_launch_env(resolved)
-        result = launch_opencode(env)
+        launch_result = launch_opencode(env)
 
-        if result.success:
+        if launch_result.success:
             self.app.exit()
         else:
-            self._show_error(result.message)
+            self._show_error(launch_result.message)
 
     @on(Button.Pressed, "#cancel-btn")
     def handle_cancel(self) -> None:

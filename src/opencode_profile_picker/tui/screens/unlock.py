@@ -14,9 +14,14 @@ from opencode_profile_picker.profiles.store import ProfileStoreManager
 class UnlockScreen(Screen[None]):
     """Screen for entering the master password or creating one on first run."""
 
+    BINDINGS = [
+        ("escape", "quit", "Quit"),
+    ]
+
     CSS = """
     #unlock-container {
-        width: 50;
+        width: 100%;
+        max-width: 50;
         height: auto;
         align: center middle;
         border: solid $primary;
@@ -80,6 +85,20 @@ class UnlockScreen(Screen[None]):
     @on(Button.Pressed, "#unlock-btn")
     def handle_unlock(self) -> None:
         """Handle the unlock/create button press."""
+        self._do_unlock()
+
+    @on(Input.Submitted, "#password-input")
+    def handle_password_submit(self) -> None:
+        """Handle Enter key on password input."""
+        self._do_unlock()
+
+    @on(Input.Submitted, "#confirm-input")
+    def handle_confirm_submit(self) -> None:
+        """Handle Enter key on confirm password input."""
+        self._do_unlock()
+
+    def _do_unlock(self) -> None:
+        """Perform the unlock/create action."""
         password = self.query_one("#password-input", Input).value
 
         if not password:
@@ -122,7 +141,7 @@ class UnlockScreen(Screen[None]):
             import contextlib
 
             with contextlib.suppress(Exception):
-                ProfileStoreManager._get_store_path().unlink(missing_ok=True)  # type: ignore[attr-defined]
+                ProfileStoreManager._get_store_path().unlink(missing_ok=True)
             self.app.pop_screen()
             self.app.push_screen(UnlockScreen())
 
@@ -130,7 +149,7 @@ class UnlockScreen(Screen[None]):
         """Called when unlock/create succeeds."""
         app = self.app
         if hasattr(app, "store_manager"):
-            app.store_manager = manager  # type: ignore[attr-defined]
+            app.store_manager = manager
         self.dismiss()
 
     def _show_error(self, message: str) -> None:

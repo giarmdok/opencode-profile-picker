@@ -9,7 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
@@ -91,7 +91,7 @@ def decrypt_store(encrypted_bytes: bytes, password: str) -> dict[str, Any]:
     # Decrypt data
     try:
         decrypted_data = fernet.decrypt(data_token)
-        return json.loads(decrypted_data.decode("utf-8"))
+        return cast("dict[str, Any]", json.loads(decrypted_data.decode("utf-8")))
     except (InvalidToken, json.JSONDecodeError) as e:
         raise ValueError("Corrupted store data") from e
 

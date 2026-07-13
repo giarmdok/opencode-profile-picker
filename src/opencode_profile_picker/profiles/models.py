@@ -29,7 +29,7 @@ class Profile:
 
     name: str
     preset: str
-    key_set: str  # References a KeySet.name
+    key_set: str = ""  # References a KeySet.name; empty if no key set assigned
 
 
 @dataclass

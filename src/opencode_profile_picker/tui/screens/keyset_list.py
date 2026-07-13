@@ -21,12 +21,14 @@ class KeySetListScreen(Screen[None]):
         ("n", "new_keyset", "New"),
         ("e", "edit_keyset", "Edit"),
         ("d", "delete_keyset", "Delete"),
+        ("enter", "edit_keyset", "Edit"),
         ("escape", "back", "Back"),
     ]
 
     CSS = """
     #keyset-list-container {
-        width: 60;
+        width: 100%;
+        max-width: 60;
         height: auto;
         align: center middle;
         border: solid $primary;

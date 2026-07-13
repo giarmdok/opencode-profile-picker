@@ -9,7 +9,6 @@ from opencode_profile_picker.profiles.store import ProfileStoreManager
 from opencode_profile_picker.tui.screens.confirm_delete import ConfirmDeleteScreen
 from opencode_profile_picker.tui.screens.keyset_edit import KeySetEditScreen
 from opencode_profile_picker.tui.screens.keyset_list import KeySetListScreen
-from opencode_profile_picker.tui.screens.launch import LaunchScreen
 from opencode_profile_picker.tui.screens.main import MainScreen
 from opencode_profile_picker.tui.screens.profile_edit import ProfileEditScreen
 from opencode_profile_picker.tui.screens.reset_confirm import ResetConfirmScreen
@@ -19,6 +18,10 @@ from opencode_profile_picker.tui.screens.unlock import UnlockScreen
 class OoppsApp(App[None]):
     """The oopps profile picker TUI application."""
 
+    BINDINGS = [
+        ("ctrl+c", "quit", "Quit"),
+    ]
+
     SCREENS = {
         "unlock": UnlockScreen,
         "reset_confirm": ResetConfirmScreen,
@@ -27,7 +30,6 @@ class OoppsApp(App[None]):
         "keyset_list": KeySetListScreen,
         "keyset_edit": KeySetEditScreen,
         "confirm_delete": ConfirmDeleteScreen,
-        "launch": LaunchScreen,
     }
 
     CSS = """
