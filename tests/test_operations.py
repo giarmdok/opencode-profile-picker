@@ -9,6 +9,7 @@ from opencode_profile_picker.profiles.operations import (
     add_key,
     add_key_set,
     add_profile,
+    compute_merge,
     delete_key_set,
     delete_profile,
     get_key_set,
@@ -160,3 +161,99 @@ class TestKeySetOperations:
         ks = store.key_sets["personal"]
         update_key_value(ks, "OPENAI_API_KEY", None)
         assert ks.keys["OPENAI_API_KEY"].value is None
+
+
+class TestComputeMerge:
+    def test_new_keys_only(self) -> None:
+        """Keys found in env but not in key set."""
+        ks = KeySet(name="test")
+        env = {"OPENAI_API_KEY": "sk-abc", "ANTHROPIC_API_KEY": "sk-xyz"}
+        result = compute_merge(ks, env)
+        assert len(result.new) == 2
+        assert len(result.overlap) == 0
+        assert len(result.orphan_stored) == 0
+        assert len(result.orphan_env_fallback) == 0
+        new_vars = {e.env_var for e in result.new}
+        assert new_vars == {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"}
+        for entry in result.new:
+            assert entry.value is None  # env var found, but we don't capture values
+
+    def test_overlapping_keys(self) -> None:
+        """Env has keys that already exist in key set."""
+        ks = KeySet(name="test")
+        existing = KeyEntry(provider="openai", env_var="OPENAI_API_KEY", value="sk-existing")
+        ks.keys["OPENAI_API_KEY"] = existing
+        env = {"OPENAI_API_KEY": "sk-abc"}
+        result = compute_merge(ks, env)
+        assert len(result.new) == 0
+        assert len(result.overlap) == 1
+        assert result.overlap[0] is existing
+
+    def test_orphan_stored(self) -> None:
+        """Key in key set with stored value, not in env."""
+        ks = KeySet(name="test")
+        orphan = KeyEntry(provider="anthropic", env_var="ANTHROPIC_API_KEY", value="sk-stored")
+        ks.keys["ANTHROPIC_API_KEY"] = orphan
+        env: dict[str, str] = {}
+        result = compute_merge(ks, env)
+        assert len(result.orphan_stored) == 1
+        assert result.orphan_stored[0] is orphan
+        assert len(result.orphan_env_fallback) == 0
+
+    def test_orphan_env_fallback(self) -> None:
+        """Key in key set with None value, not in env."""
+        ks = KeySet(name="test")
+        orphan = KeyEntry(provider="openai", env_var="OPENAI_API_KEY", value=None)
+        ks.keys["OPENAI_API_KEY"] = orphan
+        env: dict[str, str] = {}
+        result = compute_merge(ks, env)
+        assert len(result.orphan_env_fallback) == 1
+        assert result.orphan_env_fallback[0] is orphan
+        assert len(result.orphan_stored) == 0
+
+    def test_empty_result(self) -> None:
+        """No env vars set, empty key set."""
+        ks = KeySet(name="test")
+        env: dict[str, str] = {}
+        result = compute_merge(ks, env)
+        assert result.new == []
+        assert result.overlap == []
+        assert result.orphan_stored == []
+        assert result.orphan_env_fallback == []
+
+    def test_custom_env_dict(self) -> None:
+        """Passing a custom env dict instead of os.environ."""
+        ks = KeySet(name="test")
+        env = {"MISTRAL_API_KEY": "sk-mistral"}
+        result = compute_merge(ks, env)
+        assert len(result.new) == 1
+        assert result.new[0].provider == "mistral"
+        assert result.new[0].env_var == "MISTRAL_API_KEY"
+
+    def test_mixed_scenario(self) -> None:
+        """New + overlap + both orphan types in one call."""
+        ks = KeySet(name="test")
+        ks.keys["OPENAI_API_KEY"] = KeyEntry(
+            provider="openai", env_var="OPENAI_API_KEY", value="sk-exists"
+        )
+        ks.keys["ANTHROPIC_API_KEY"] = KeyEntry(
+            provider="anthropic", env_var="ANTHROPIC_API_KEY", value="sk-stored"
+        )
+        ks.keys["MISTRAL_API_KEY"] = KeyEntry(
+            provider="mistral", env_var="MISTRAL_API_KEY", value=None
+        )
+
+        env = {
+            "OPENAI_API_KEY": "sk-env-openai",
+            "GOOGLE_API_KEY": "sk-env-google",
+        }
+
+        result = compute_merge(ks, env)
+        assert len(result.new) == 1
+        assert result.new[0].env_var == "GOOGLE_API_KEY"
+        assert len(result.overlap) == 1
+        assert result.overlap[0].env_var == "OPENAI_API_KEY"
+        assert len(result.orphan_stored) == 1
+        assert result.orphan_stored[0].env_var == "ANTHROPIC_API_KEY"
+        assert len(result.orphan_env_fallback) == 1
+        assert result.orphan_env_fallback[0].env_var == "MISTRAL_API_KEY"

@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Button, DataTable, Input, Label, Select, Static
+from textual.widgets import Button, DataTable, Footer, Input, Label, Select, Static
 
-from opencode_profile_picker.config.discover import PROVIDER_KEY_MAP, scan_env_for_keys
+from opencode_profile_picker.config.discover import PROVIDER_KEY_MAP
 from opencode_profile_picker.profiles.models import KeySet
 from opencode_profile_picker.profiles.operations import (
     add_key,
     add_key_set,
+    compute_merge,
+    remove_key,
+    update_key_value,
 )
+from opencode_profile_picker.tui.screens.confirm_delete import ConfirmDeleteScreen
+from opencode_profile_picker.tui.screens.edit_key_value_modal import EditKeyValueModal
+from opencode_profile_picker.tui.screens.merge_import_modal import MergeImportModal
 
 
 class KeySetEditScreen(Screen[None]):
@@ -23,6 +27,12 @@ class KeySetEditScreen(Screen[None]):
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
+        ("enter", "edit_selected_key", "Edit"),
+        ("e", "edit_selected_key", "Edit"),
+        ("d", "delete_selected_key", "Delete"),
+        ("delete", "delete_selected_key", "Delete"),
+        ("a", "add_key", "Add Key"),
+        ("i", "import_env", "Import"),
     ]
 
     CSS = """
@@ -71,7 +81,8 @@ class KeySetEditScreen(Screen[None]):
         title = "New Key Set" if self._is_new else f"Edit: {self._keyset_name}"
 
         provider_options = [(f"{k} ({v})", k) for k, v in sorted(PROVIDER_KEY_MAP.items())]
-        provider_options.append(("Custom...", "__custom__"))
+        provider_options.append(("──────────", ""))  # visual separator
+        provider_options.append(("Custom env var...", "__custom__"))
 
         with Container(id="keyset-edit-container"):
             yield Label(title, id="keyset-edit-title")
@@ -96,13 +107,14 @@ class KeySetEditScreen(Screen[None]):
                     yield Input(placeholder="sk-...", id="value-input", password=True)
                 with Horizontal(id="keyset-edit-buttons"):
                     yield Button("Add Key", variant="primary", id="add-key-btn")
-                    yield Button("Scan Env", variant="default", id="scan-env-btn")
+                    yield Button("Import from Environment", variant="default", id="import-env-btn")
 
             yield Static("", id="keyset-edit-error")
 
-            with Horizontal(id="keyset-edit-buttons"):
+            with Horizontal(id="keyset-save-buttons"):
                 yield Button("Save & Back", variant="primary", id="save-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_mount(self) -> None:
         table = self.query_one("#keys-table", DataTable)
@@ -117,7 +129,7 @@ class KeySetEditScreen(Screen[None]):
             return None
         if self._is_new:
             return None
-        return cast("KeySet | None", manager.store.key_sets.get(self._keyset_name or ""))
+        return manager.store.key_sets.get(self._keyset_name or "")  # type: ignore[no-any-return]
 
     def _refresh_table(self) -> None:
         table = self.query_one("#keys-table", DataTable)
@@ -132,14 +144,19 @@ class KeySetEditScreen(Screen[None]):
     def _on_provider_changed(self, event: Select.Changed) -> None:
         """Auto-fill env var when provider is selected."""
         provider = str(event.value) if event.value else ""
-        if provider and provider != "__custom__":
+        try:
+            env_input = self.query_one("#env-var-input", Input)
+        except Exception:
+            return
+        if provider == "__custom__":
+            env_input.value = ""
+            env_input.placeholder = "Enter any environment variable name..."
+            env_input.focus()
+        elif provider:
             env_var = PROVIDER_KEY_MAP.get(provider, "")
             if env_var:
-                try:
-                    env_input = self.query_one("#env-var-input", Input)
-                    env_input.value = env_var
-                except Exception:
-                    pass
+                env_input.value = env_var
+                env_input.placeholder = "OPENAI_API_KEY"
 
     @on(Button.Pressed, "#add-key-btn")
     def handle_add_key(self) -> None:
@@ -205,9 +222,90 @@ class KeySetEditScreen(Screen[None]):
     def handle_cancel(self) -> None:
         self.dismiss()
 
-    @on(Button.Pressed, "#scan-env-btn")
-    def handle_scan_env(self) -> None:
-        """Scan environment for known API keys and import them."""
+    def action_add_key(self) -> None:
+        """Add key via keyboard shortcut."""
+        self.handle_add_key()
+
+    def action_import_env(self) -> None:
+        """Import from environment via keyboard shortcut."""
+        self.handle_import_env()
+
+    def action_edit_selected_key(self) -> None:
+        """Edit the currently selected key's value."""
+        table = self.query_one("#keys-table", DataTable)
+        if table.row_count == 0:
+            return
+        try:
+            row_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+            if row_key is None or row_key.row_key is None:
+                return  # type: ignore[unreachable]
+            env_var = str(row_key.row_key.value)
+        except Exception:
+            return
+
+        ks = self._get_keyset()
+        if ks is None:
+            return
+        entry = ks.keys.get(env_var)
+        if entry is None:
+            return
+
+        def on_dismiss(new_value: str | None) -> None:
+            if new_value is None:
+                return  # cancelled
+            try:
+                update_key_value(ks, env_var, new_value or None)
+            except KeyError:
+                return
+            manager = getattr(self.app, "store_manager", None)
+            if manager:
+                manager.save()
+            self._refresh_table()
+
+        self.app.push_screen(
+            EditKeyValueModal(entry.provider, env_var, entry.value),
+            on_dismiss,
+        )
+
+    def action_delete_selected_key(self) -> None:
+        """Delete the currently selected key."""
+        table = self.query_one("#keys-table", DataTable)
+        if table.row_count == 0:
+            return
+        try:
+            row_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+            if row_key is None or row_key.row_key is None:
+                return  # type: ignore[unreachable]
+            env_var = str(row_key.row_key.value)
+        except Exception:
+            return
+
+        ks = self._get_keyset()
+        if ks is None:
+            return
+        if env_var not in ks.keys:
+            return
+
+        def on_dismiss(confirmed: object) -> None:
+            if not isinstance(confirmed, bool) or not confirmed:
+                return
+            try:
+                remove_key(ks, env_var)
+            except KeyError:
+                return
+            manager = getattr(self.app, "store_manager", None)
+            if manager:
+                manager.save()
+            self._refresh_table()
+
+        self.app.push_screen(
+            ConfirmDeleteScreen(message=f"Remove '{env_var}' from this key set?"),
+            on_dismiss,
+        )
+
+    @on(Button.Pressed, "#import-env-btn")
+    def handle_import_env(self) -> None:
+        """Import keys from environment with merge preview."""
         app = self.app
         manager = getattr(app, "store_manager", None)
         if manager is None:
@@ -221,7 +319,7 @@ class KeySetEditScreen(Screen[None]):
             except Exception:
                 return
             if not name:
-                self._show_error("Enter a key set name first, then scan")
+                self._show_error("Enter a key set name first, then import")
                 return
             try:
                 add_key_set(manager.store, name)
@@ -236,32 +334,28 @@ class KeySetEditScreen(Screen[None]):
         if ks is None:
             return
 
-        found = scan_env_for_keys()
-        if not found:
+        preview = compute_merge(ks)
+
+        # Check if nothing to import
+        if (
+            not preview.new
+            and not preview.overlap
+            and not preview.orphan_stored
+            and not preview.orphan_env_fallback
+        ):
             self._show_error("No known API keys found in environment")
             return
 
-        imported = 0
-        skipped = 0
-        for provider, env_var in sorted(found.items()):
-            if env_var in ks.keys:
-                skipped += 1
-                continue
-            try:
-                add_key(ks, provider, env_var, None)  # env fallback — don't store the value
-                imported += 1
-            except ValueError:
-                skipped += 1
+        def on_dismiss(result: object) -> None:
+            if result is None:
+                return  # cancelled
+            manager.save()
+            self._refresh_table()
 
-        manager.save()
-        self._refresh_table()
-
-        msg_parts = []
-        if imported:
-            msg_parts.append(f"Imported {imported} key(s)")
-        if skipped:
-            msg_parts.append(f"Skipped {skipped} (already present)")
-        self._show_error(" | ".join(msg_parts))
+        self.app.push_screen(
+            MergeImportModal(preview, ks),
+            on_dismiss,
+        )
 
     def _show_error(self, message: str) -> None:
         try:

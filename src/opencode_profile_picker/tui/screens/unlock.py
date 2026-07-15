@@ -6,7 +6,7 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Footer, Input, Label, Static
 
 from opencode_profile_picker.profiles.store import ProfileStoreManager
 
@@ -16,6 +16,7 @@ class UnlockScreen(Screen[None]):
 
     BINDINGS = [
         ("escape", "quit", "Quit"),
+        ("f", "forgot_password", "Forgot"),
     ]
 
     CSS = """
@@ -81,6 +82,7 @@ class UnlockScreen(Screen[None]):
                 yield Button("Forgot Password?", variant="error", id="forgot-btn")
 
             yield Static("", id="unlock-error")
+            yield Footer()
 
     @on(Button.Pressed, "#unlock-btn")
     def handle_unlock(self) -> None:
@@ -132,6 +134,10 @@ class UnlockScreen(Screen[None]):
     @on(Button.Pressed, "#forgot-btn")
     def handle_forgot(self) -> None:
         """Handle the forgot password button."""
+        self.app.push_screen("reset_confirm", self._on_reset_result)
+
+    def action_forgot_password(self) -> None:
+        """Open reset password confirmation via keyboard."""
         self.app.push_screen("reset_confirm", self._on_reset_result)
 
     def _on_reset_result(self, reset: bool | None) -> None:

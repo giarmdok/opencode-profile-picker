@@ -2,7 +2,74 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+from opencode_profile_picker.config.discover import PROVIDER_KEY_MAP
 from opencode_profile_picker.profiles.models import KeyEntry, KeySet, Profile, ProfileStore
+
+
+@dataclass
+class MergePreview:
+    """Structured preview of what would change when importing keys from environment."""
+
+    new: list[KeyEntry]  # env vars set, not in key set
+    overlap: list[KeyEntry]  # env vars set, already in key set (info only)
+    orphan_stored: list[KeyEntry]  # in key set, not in env, value is not None
+    orphan_env_fallback: list[KeyEntry]  # in key set, not in env, value is None
+
+
+def compute_merge(
+    key_set: KeySet,
+    env: dict[str, str] | None = None,
+) -> MergePreview:
+    """Compare a key set against environment variables and return a structured preview.
+
+    Args:
+        key_set: The key set to diff against.
+        env: Optional environment dict. Defaults to os.environ.
+
+    Returns:
+        MergePreview with four categorized lists.
+    """
+    import os as _os
+
+    if env is None:
+        env = dict(_os.environ)
+
+    # Find which known env vars are set
+    env_entries: list[tuple[str, str]] = []  # (provider, env_var)
+    for provider, env_var in PROVIDER_KEY_MAP.items():
+        if env.get(env_var):
+            env_entries.append((provider, env_var))
+
+    env_var_set = {ev for _, ev in env_entries}
+
+    new: list[KeyEntry] = []
+    overlap: list[KeyEntry] = []
+
+    for provider, env_var in env_entries:
+        if env_var in key_set.keys:
+            overlap.append(key_set.keys[env_var])
+        else:
+            new.append(KeyEntry(provider=provider, env_var=env_var, value=None))
+
+    orphan_stored: list[KeyEntry] = []
+    orphan_env_fallback: list[KeyEntry] = []
+
+    for entry in key_set.keys.values():
+        if entry.env_var not in env_var_set:
+            if entry.value is not None:
+                orphan_stored.append(entry)
+            else:
+                orphan_env_fallback.append(entry)
+
+    return MergePreview(
+        new=new,
+        overlap=overlap,
+        orphan_stored=orphan_stored,
+        orphan_env_fallback=orphan_env_fallback,
+    )
+
 
 # ── Profile Operations ──────────────────────────────────────────────
 

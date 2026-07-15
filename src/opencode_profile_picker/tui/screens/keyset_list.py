@@ -6,12 +6,14 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Button, DataTable, Label, Static
+from textual.widgets import Button, DataTable, Footer, Label, Static
 
 from opencode_profile_picker.profiles.operations import (
     delete_key_set,
     list_key_sets,
 )
+from opencode_profile_picker.tui.screens.confirm_delete import ConfirmDeleteScreen
+from opencode_profile_picker.tui.screens.keyset_edit import KeySetEditScreen
 
 
 class KeySetListScreen(Screen[None]):
@@ -57,6 +59,7 @@ class KeySetListScreen(Screen[None]):
                 yield Button("Edit", variant="default", id="edit-btn")
                 yield Button("Delete", variant="error", id="delete-btn")
                 yield Button("Back", variant="default", id="back-btn")
+        yield Footer()
 
     def on_mount(self) -> None:
         table = self.query_one("#keyset-table", DataTable)
@@ -88,19 +91,20 @@ class KeySetListScreen(Screen[None]):
         table = self.query_one("#keyset-table", DataTable)
         if table.row_count == 0:
             return
-        row_key = table.get_cell_at(table.cursor_coordinate)
-        if row_key is None:
-            return
-        self.app.push_screen("keyset_edit", self._on_edit_done)
+        cell_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        name = str(cell_key.row_key.value)
+        self.app.push_screen(KeySetEditScreen(name), self._on_edit_done)
 
     def action_delete_keyset(self) -> None:
         table = self.query_one("#keyset-table", DataTable)
         if table.row_count == 0:
             return
-        row_key = table.get_cell_at(table.cursor_coordinate)
-        if row_key is None:
-            return
-        self.app.push_screen("confirm_delete", self._on_delete_result)
+        cell_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        name = str(cell_key.row_key.value)
+        self.app.push_screen(
+            ConfirmDeleteScreen(message=f"Delete key set '{name}'?"),
+            self._on_delete_result,
+        )
 
     def action_back(self) -> None:
         self.dismiss()
@@ -127,17 +131,16 @@ class KeySetListScreen(Screen[None]):
     def _on_delete_result(self, confirmed: bool | None) -> None:
         if not confirmed:
             return
-        table = self.query_one("#keyset-table", DataTable)
-        row_key = table.get_cell_at(table.cursor_coordinate)
-        if row_key is None:
-            return
-        name = str(row_key)
         app = self.app
         manager = getattr(app, "store_manager", None)
-        if manager:
-            try:
-                delete_key_set(manager.store, name)
-                manager.save()
-            except KeyError:
-                pass
+        if not manager:
+            return
+        table = self.query_one("#keyset-table", DataTable)
+        cell_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        name = str(cell_key.row_key.value)
+        try:
+            delete_key_set(manager.store, name)
+            manager.save()
+        except KeyError:
+            pass
         self._refresh()

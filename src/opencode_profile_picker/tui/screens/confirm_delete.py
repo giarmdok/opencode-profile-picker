@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label
+from textual.widgets import Button, Footer, Label
 
 
 class ConfirmDeleteScreen(ModalScreen[bool]):
@@ -13,6 +14,7 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
+        ("d", "delete", "Delete"),
     ]
 
     CSS = """
@@ -43,20 +45,33 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
     }
     """
 
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__()
+        self._message = message
+
     def compose(self) -> ComposeResult:
         with Container(id="confirm-container"):
             yield Label("Confirm Delete", id="confirm-title")
-            yield Label("Are you sure you want to delete this?", id="confirm-message")
+            yield Label(
+                self._message or "Are you sure you want to delete this?", id="confirm-message"
+            )
             with Container(id="confirm-buttons"):
                 yield Button("Delete", variant="error", id="delete-btn")
                 yield Button("Cancel", variant="primary", id="cancel-btn")
+        yield Footer()
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "delete-btn":
-            self.dismiss(True)
-        else:
-            self.dismiss(False)
+    @on(Button.Pressed, "#delete-btn")
+    def handle_delete(self) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#cancel-btn")
+    def handle_cancel_button(self) -> None:
+        self.dismiss(False)
 
     def action_cancel(self) -> None:
         """Cancel the dialog via keyboard."""
         self.dismiss(False)
+
+    def action_delete(self) -> None:
+        """Confirm delete via keyboard."""
+        self.dismiss(True)

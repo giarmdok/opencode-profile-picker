@@ -6,13 +6,12 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Button, Label, Static
+from textual.widgets import Button, Footer, Label, Static
 
 from opencode_profile_picker.config.paths import get_omo_config_paths
 from opencode_profile_picker.keys.launcher import check_opencode_available, launch_opencode
 from opencode_profile_picker.keys.resolver import (
     build_launch_env,
-    get_missing_keys,
     get_required_keys,
     resolve_keys,
 )
@@ -24,6 +23,7 @@ class LaunchScreen(Screen[None]):
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
+        ("ctrl+l", "launch", "Launch"),
     ]
 
     CSS = """
@@ -69,6 +69,7 @@ class LaunchScreen(Screen[None]):
             with Horizontal(id="launch-buttons"):
                 yield Button("Launch", variant="primary", id="launch-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_mount(self) -> None:
         self._build_summary()
@@ -140,11 +141,6 @@ class LaunchScreen(Screen[None]):
 
         # Resolve keys
         resolved = resolve_keys(keyset, required)
-        missing = get_missing_keys(resolved)
-
-        if missing:
-            self._show_error(f"Missing keys: {', '.join(missing)}")
-            return
 
         # Check opencode
         if not check_opencode_available():
@@ -173,6 +169,10 @@ class LaunchScreen(Screen[None]):
     @on(Button.Pressed, "#cancel-btn")
     def handle_cancel(self) -> None:
         self.dismiss()
+
+    def action_launch(self) -> None:
+        """Launch via keyboard shortcut."""
+        self.handle_launch()
 
     def _show_error(self, message: str) -> None:
         try:
