@@ -5,7 +5,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import DataTable, Header, Label, Static
+from textual.widgets import DataTable, Footer, Header, Label, Static
 
 from opencode_profile_picker.config.discover import discover_omo_config
 from opencode_profile_picker.profiles.operations import (
@@ -13,6 +13,7 @@ from opencode_profile_picker.profiles.operations import (
     list_profiles,
     validate_profiles,
 )
+from opencode_profile_picker.tui.screens.confirm_delete import ConfirmDeleteScreen
 from opencode_profile_picker.tui.screens.launch import LaunchScreen
 from opencode_profile_picker.tui.screens.profile_edit import ProfileEditScreen
 
@@ -47,6 +48,7 @@ class MainScreen(Screen[None]):
                 yield DataTable(id="keyset-table")
                 yield Static("No key sets yet.", id="keyset-empty", classes="empty-message")
         yield Static("", id="status-bar")
+        yield Footer()
 
     def on_mount(self) -> None:
         """Set up tables and load data."""
@@ -128,20 +130,22 @@ class MainScreen(Screen[None]):
         table = self.query_one("#profile-table", DataTable)
         if table.row_count == 0:
             return
-        row_key = table.get_cell_at(table.cursor_coordinate)
-        if row_key is None:
-            return
-        self.app.push_screen(ProfileEditScreen(str(row_key)), self._on_profile_edit_done)
+        cell_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        self.app.push_screen(
+            ProfileEditScreen(str(cell_key.row_key.value)), self._on_profile_edit_done
+        )
 
     def action_delete_profile(self) -> None:
         """Delete the selected profile."""
         table = self.query_one("#profile-table", DataTable)
         if table.row_count == 0:
             return
-        row_key = table.get_cell_at(table.cursor_coordinate)
-        if row_key is None:
-            return
-        self.app.push_screen("confirm_delete", self._on_delete_result)
+        cell_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        name = str(cell_key.row_key.value)
+        self.app.push_screen(
+            ConfirmDeleteScreen(message=f"Delete profile '{name}'?"),
+            self._on_delete_result,
+        )
 
     def action_key_sets(self) -> None:
         """Open the key sets screen."""
@@ -152,10 +156,8 @@ class MainScreen(Screen[None]):
         table = self.query_one("#profile-table", DataTable)
         if table.row_count == 0:
             return
-        row_key = table.get_cell_at(table.cursor_coordinate)
-        if row_key is None:
-            return
-        self.app.push_screen(LaunchScreen(str(row_key)), self._on_launch_done)
+        cell_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        self.app.push_screen(LaunchScreen(str(cell_key.row_key.value)), self._on_launch_done)
 
     def _on_profile_edit_done(self, _result: object) -> None:
         self._refresh()
@@ -163,21 +165,20 @@ class MainScreen(Screen[None]):
     def _on_delete_result(self, confirmed: bool | None) -> None:
         if not confirmed:
             return
-        table = self.query_one("#profile-table", DataTable)
-        row_key = table.get_cell_at(table.cursor_coordinate)
-        if row_key is None:
-            return
-        profile_name = str(row_key)
         app = self.app
         manager = getattr(app, "store_manager", None)
-        if manager:
-            from opencode_profile_picker.profiles.operations import delete_profile
+        if not manager:
+            return
+        table = self.query_one("#profile-table", DataTable)
+        cell_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        profile_name = str(cell_key.row_key.value)
+        from opencode_profile_picker.profiles.operations import delete_profile
 
-            try:
-                delete_profile(manager.store, profile_name)
-                manager.save()
-            except KeyError:
-                pass
+        try:
+            delete_profile(manager.store, profile_name)
+            manager.save()
+        except KeyError:
+            pass
         self._refresh()
 
     def _on_keyset_done(self, _result: object) -> None:

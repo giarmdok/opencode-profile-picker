@@ -8,7 +8,7 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, Select, Static
+from textual.widgets import Button, Footer, Input, Label, Select, Static
 
 from opencode_profile_picker.profiles.operations import add_profile, update_profile
 
@@ -18,6 +18,7 @@ class ProfileEditScreen(Screen[None]):
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
+        ("ctrl+s", "save", "Save"),
     ]
 
     CSS = """
@@ -84,10 +85,13 @@ class ProfileEditScreen(Screen[None]):
             else:
                 yield Label(f"Edit Profile: {self._profile_name}", id="edit-title")
 
-            if self._is_new:
-                with Container(classes="edit-field"):
-                    yield Label("Name:", classes="edit-label")
-                    yield Input(placeholder="profile-name", id="name-input")
+            with Container(classes="edit-field"):
+                yield Label("Name:", classes="edit-label")
+                yield Input(
+                    value=self._profile_name or "",
+                    placeholder="profile-name",
+                    id="name-input",
+                )
 
             with Container(classes="edit-field"):
                 yield Label("Preset:", classes="edit-label")
@@ -109,14 +113,15 @@ class ProfileEditScreen(Screen[None]):
             with Horizontal(id="edit-buttons"):
                 yield Button("Save", variant="primary", id="save-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_mount(self) -> None:
         """Pre-populate fields if editing, and set initial focus."""
-        if self._is_new:
-            # Focus the name input so user can start typing immediately
-            with contextlib.suppress(Exception):
-                self.query_one("#name-input", Input).focus()
-        elif self._profile_name:
+        # Focus the name input so user can start typing immediately
+        with contextlib.suppress(Exception):
+            self.query_one("#name-input", Input).focus()
+
+        if self._profile_name:
             app = self.app
             manager = getattr(app, "store_manager", None)
             if manager and self._profile_name in manager.store.profiles:
@@ -188,17 +193,14 @@ class ProfileEditScreen(Screen[None]):
             return
 
         # Get name
-        if self._is_new:
-            try:
-                name_input = self.query_one("#name-input", Input)
-                name = name_input.value.strip()
-            except Exception:
-                return
-            if not name:
-                self._show_error("Name is required")
-                return
-        else:
-            name = self._profile_name or ""
+        try:
+            name_input = self.query_one("#name-input", Input)
+            name = name_input.value.strip()
+        except Exception:
+            return
+        if not name:
+            self._show_error("Name is required")
+            return
 
         # Get preset and key set
         try:
@@ -225,16 +227,26 @@ class ProfileEditScreen(Screen[None]):
             if self._is_new:
                 add_profile(manager.store, name, preset, keyset)
             else:
-                update_profile(manager.store, name, preset=preset, key_set=keyset)
+                old_name = self._profile_name or ""
+                if old_name != name:
+                    # Rename: add under new name, remove old entry
+                    add_profile(manager.store, name, preset, keyset)
+                    del manager.store.profiles[old_name]
+                else:
+                    update_profile(manager.store, name, preset=preset, key_set=keyset)
             manager.save()
             self.dismiss()
-        except ValueError as e:
+        except (ValueError, KeyError) as e:
             self._show_error(str(e))
 
     @on(Button.Pressed, "#cancel-btn")
     def handle_cancel(self) -> None:
         """Cancel and return to main screen."""
         self.dismiss()
+
+    def action_save(self) -> None:
+        """Save via keyboard shortcut."""
+        self.handle_save()
 
     def _show_error(self, message: str) -> None:
         """Display an error message."""

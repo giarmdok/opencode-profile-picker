@@ -5,7 +5,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label
+from textual.widgets import Button, Footer, Label
 
 
 class ResetConfirmScreen(ModalScreen[bool]):
@@ -54,6 +54,7 @@ class ResetConfirmScreen(ModalScreen[bool]):
             with Container(id="reset-buttons"):
                 yield Button("Reset (lose all keys)", variant="error", id="reset-btn")
                 yield Button("Cancel", variant="primary", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "reset-btn":
