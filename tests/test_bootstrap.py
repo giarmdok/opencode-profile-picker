@@ -369,3 +369,52 @@ class TestBootstrapFullIntegration:
         # Verify .gitignore was updated
         gitignore_content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
         assert ".project" in gitignore_content
+
+
+# ===========================================================================
+# Test: offer_gitignore_append when .git is not a dir (line 100)
+# ===========================================================================
+
+
+class TestOfferGitignoreAppendNotGitDir:
+    """offer_gitignore_append when .git exists but is not a directory."""
+
+    def test_git_is_file_not_dir_returns_without_prompt(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When .git is a file (not a dir), check_gitignore returns False
+        but the second check in offer_gitignore_append catches it."""
+        # Create .git as a file (not a directory)
+        (tmp_path / ".git").touch()
+        # Create .gitignore without .project so check_gitignore returns False
+        (tmp_path / ".gitignore").write_text("*.log\n", encoding="utf-8")
+        # If the function tries to prompt, it will fail
+        monkeypatch.setattr(
+            "builtins.input",
+            lambda _: (_ for _ in ()).throw(AssertionError("should not be called")),
+        )
+        # Should not raise
+        offer_gitignore_append(tmp_path)
+
+
+# ===========================================================================
+# Test: chmod exception in run_bootstrap (lines 169-170)
+# ===========================================================================
+
+
+class TestBootstrapChmodException:
+    """run_bootstrap handles chmod exceptions gracefully."""
+
+    def test_chmod_exception_does_not_prevent_success(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        platform = make_platform(tmp_path)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+
+        def failing_chmod(self_path: Path, mode: int) -> None:
+            raise PermissionError("chmod denied")
+
+        monkeypatch.setattr(Path, "chmod", failing_chmod)
+        result = run_bootstrap(platform, confirm=False)
+        assert result is True
+        assert (tmp_path / ".project").is_file()

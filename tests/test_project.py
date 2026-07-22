@@ -278,6 +278,17 @@ class TestValidation:
         with pytest.raises(ValueError, match="embedded newline"):
             parse_project(f)
 
+    def test_empty_key_part_returns_unknown(self, tmp_path: Path) -> None:
+        """Line with = but empty key part (e.g. '=value') should be treated as unknown (line 97)."""
+        f = tmp_path / ".project"
+        f.write_text("=value\nVALID=ok\n", encoding="utf-8")
+        kv, lines = parse_project(f)
+        assert kv == {"VALID": "ok"}
+        assert len(lines) == 2
+        assert lines[0].line_type == "unknown"
+        assert lines[0].raw == "=value"
+        assert lines[1].line_type == "kv"
+
 
 class TestMissingFile:
     """Missing file returns empty dict and empty list."""

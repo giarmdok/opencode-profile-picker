@@ -438,3 +438,39 @@ class TestGlobalConfigSafety:
         # Check there's no .bak next to the global config
         global_bak = config_path.with_suffix(config_path.suffix + ".bak")
         assert not global_bak.exists()
+
+
+# ===========================================================================
+# Test: Temp file cleanup on write failure (lines 231-235)
+# ===========================================================================
+
+
+class TestSetPresetTempFileCleanup:
+    """Temp file should be cleaned up if os.replace fails."""
+
+    def test_temp_file_cleaned_up_on_replace_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config_path = _write_config(tmp_path, SAMPLE_CONFIG)
+        local_path = _local_config_path(tmp_path)
+
+        # Mock os.replace to raise an exception
+        original_replace = __import__("os").replace
+
+        def failing_replace(src: str, dst: str) -> None:
+            if dst == str(local_path):
+                raise OSError("Replace failed")
+            original_replace(src, dst)
+
+        monkeypatch.setattr("os.replace", failing_replace)
+
+        with pytest.raises(OSError, match="Replace failed"):
+            set_preset(config_path, "anthropic", project_root=tmp_path, confirm=False)
+
+        # Verify no temp files remain in the .opencode directory
+        temp_files_after = (
+            list((tmp_path / ".opencode").rglob("*.tmp"))
+            if (tmp_path / ".opencode").exists()
+            else []
+        )
+        assert len(temp_files_after) == 0, f"Temp files not cleaned up: {temp_files_after}"

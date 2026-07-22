@@ -169,3 +169,15 @@ class TestDetectVenv:
         assert "PATH" in result.env_delta
         assert "VIRTUAL_ENV" in result.env_delta
         assert result.env_delta["VIRTUAL_ENV"] == str(tmp_path / ".venv_win")
+
+    def test_detect_returns_none_when_venv_invalid(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """detect_venv returns None when venv dir exists but has no interpreter (line 95)."""
+        platform = make_platform(tmp_path, PlatformFamily.WINDOWS)
+        # Create venv dir without interpreter
+        venv_dir = tmp_path / ".venv_win"
+        venv_dir.mkdir()
+        # validate_venv returns False, so detect_venv should return None
+        result = detect_venv(platform)
+        assert result is None

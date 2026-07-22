@@ -298,3 +298,78 @@ class TestLaunchOpencode:
         result = launch_opencode(platform=platform)
         assert result == 1
         assert "opencode not found in PATH" in stderr_capture.getvalue()
+
+
+# ===========================================================================
+# Test: platform=None defaults to Platform.detect() (line 82)
+# ===========================================================================
+
+
+class TestLaunchOpencodePlatformNone:
+    """platform=None should use Platform.detect()."""
+
+    def test_platform_none_uses_detect(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When platform is None, Platform.detect() is called."""
+        captured_platforms: list[Platform] = []
+
+        def fake_detect(**kw: object) -> Platform:
+            p = Platform(
+                family=PlatformFamily.WINDOWS,
+                venv_dir_name=".venv_win",
+                venv_bin_subdir="Scripts",
+                omo_config_paths=[Path("dummy")],
+                project_root=Path("."),
+            )
+            captured_platforms.append(p)
+            return p
+
+        monkeypatch.setattr("ocpp.launch.Platform.detect", fake_detect)
+        monkeypatch.setattr("shutil.which", lambda cmd, path=None: "/usr/bin/opencode")
+
+        captured_args: list[list[str]] = []
+
+        def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+            captured_args.append(args)
+            return subprocess.CompletedProcess(args, 0)  # type: ignore[arg-type]
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+
+        launch_opencode(platform=None)
+        assert len(captured_platforms) == 1
+        assert len(captured_args) == 1
+        assert captured_args[0] == ["/usr/bin/opencode"]
+
+
+# ===========================================================================
+# Test: OSError from os.execvpe (lines 100-101)
+# ===========================================================================
+
+
+class TestLaunchOpencodeExecvpeOSError:
+    """OSError from os.execvpe should be caught and wrapped as LaunchError."""
+
+    def test_oserror_wrapped_in_launch_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("shutil.which", lambda cmd, path=None: "/usr/bin/opencode")
+
+        def failing_execvpe(file: str, args: list[str], env: dict[str, str]) -> None:
+            raise OSError("Exec format error")
+
+        monkeypatch.setattr("os.execvpe", failing_execvpe)
+
+        import io
+
+        stderr_capture = io.StringIO()
+        monkeypatch.setattr(sys, "stderr", stderr_capture)
+
+        platform = Platform(
+            family=PlatformFamily.LINUX,
+            venv_dir_name=".venv_lin",
+            venv_bin_subdir="bin",
+            omo_config_paths=[Path("dummy")],
+            project_root=Path("."),
+        )
+
+        result = launch_opencode(platform=platform)
+        assert result == 1
+        assert "Failed to launch opencode:" in stderr_capture.getvalue()
+        assert "Exec format error" in stderr_capture.getvalue()

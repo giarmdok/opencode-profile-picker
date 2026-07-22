@@ -185,3 +185,21 @@ class TestFrozenDataclass:
         p = Platform.detect(platform_string="linux")
         with pytest.raises(FrozenInstanceError):
             p.omo_config_paths = []  # type: ignore[misc]
+
+
+class TestPlatformDetectDefault:
+    """Platform.detect() with no arguments uses sys.platform (line 54)."""
+
+    def test_default_uses_sys_platform(self) -> None:
+        """Calling Platform.detect() with no args should use sys.platform."""
+        import sys
+
+        p = Platform.detect()
+        expected_family = (
+            PlatformFamily.WINDOWS
+            if sys.platform == "win32"
+            else PlatformFamily.LINUX
+            if sys.platform.startswith("linux")
+            else PlatformFamily.UNIX
+        )
+        assert p.family is expected_family
