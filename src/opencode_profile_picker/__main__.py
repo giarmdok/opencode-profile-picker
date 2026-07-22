@@ -1,15 +1,20 @@
-"""Entry point for oopps."""
+"""Entry point for the oopps CLI."""
 
 from __future__ import annotations
 
+import sys
 
-def main() -> None:
-    """Run the oopps TUI application."""
-    from opencode_profile_picker.app import OoppsApp
 
-    app = OoppsApp()
-    app.run()
+def main() -> int:
+    """Run the oopps tool.
+
+    Skeleton entry point. Real subcommands (env-key setup, OMO preset
+    application) will be wired in as they are implemented.
+    """
+    print("oopps — OpenCode environment key & OMO preset setup tool")
+    print("Not yet implemented. See AGENTS.md and openspec/ for the plan.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

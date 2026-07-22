@@ -2,7 +2,7 @@
 
 ## Project
 
-Python CLI/TUI application that discovers OpenCode and oh-my-opencode-slim configurations on the local machine, presents the user with a profile picker, and applies selected settings (file changes, environment variables) before optionally launching OpenCode.
+Python CLI/TUI tool that sets up the correct environment keys (API credentials) and applies oh-my-opencode-slim (OMO) presets to a user's OpenCode configuration on the local machine.
 
 ## Build & Run
 
@@ -28,6 +28,8 @@ Single-file executable via PyInstaller or Nuitka. The executable must bundle all
 ## Architecture
 
 - **TUI framework**: Use Textual or Rich for the terminal interface. Do not use curses directly.
+- **Environment keys**: Help the user add/edit API keys (Anthropic, OpenAI, etc.) into OpenCode config or environment. Never log or print secret values. Detect the active shell before writing env vars.
+- **OMO presets**: Apply predefined oh-my-opencode-slim preset bundles (agents, models, prompts, skills, MCPs) to a user's OpenCode config.
 - **Discovery**: Scan known filesystem paths for OpenCode/OMO config. Do not shell out to `opencode` CLI for discovery — read config files directly.
 - **Config mutation**: Write changes back to the discovered config files. Never delete or reformat config the user didn't touch.
 - **Environment variables**: Set via the current shell session or by writing to shell profile files (`.bashrc`, `.zshrc`, PowerShell profile, etc.). Detect the active shell before writing.
