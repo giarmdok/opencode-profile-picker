@@ -3,13 +3,13 @@ requires = ["setuptools>=75", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "oopps"
+name = "ocpp"
 version = "0.1.0"
-description = "OpenCode Oh-My-OpenCode-Slim setup tool — environment keys and OMO presets"
+description = "Opencode Profile Picker — environment keys and OMO preset setup tool"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
-authors = [{ name = "oopps contributors" }]
+authors = [{ name = "ocpp contributors" }]
 keywords = ["opencode", "oh-my-opencode-slim", "omo", "presets", "environment", "setup"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -24,8 +24,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "textual>=2.0",
-    "cryptography>=43.0",
+    "rich>=13.0",
     "json5>=0.9",
 ]
 
@@ -35,12 +34,11 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "pytest>=8.0",
-    "pytest-asyncio>=0.24",
     "pre-commit>=4.0",
 ]
 
 [project.scripts]
-oopps = "opencode_profile_picker.__main__:main"
+ocpp = "ocpp.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -82,12 +80,11 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = [
-    "textual.*",
+    "rich.*",
     "json5.*",
 ]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
 addopts = ["-v", "--tb=short"]

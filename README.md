@@ -1,6 +1,6 @@
-# oopps
+# ocpp
 
-**OpenCode Oh-My-OpenCode-Slim setup tool** — sets up the correct environment keys (API credentials) and applies OMO presets to your OpenCode configuration.
+**Opencode Profile Picker** — sets up the correct environment keys (API credentials) and applies OMO presets to your OpenCode configuration, then launches opencode with the right environment and venv.
 
 ## Status
 

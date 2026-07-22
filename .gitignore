@@ -11,10 +11,16 @@ bin/
 build/
 dist/
 *.egg-info/
+
+# PyInstaller specs (track ocpp.spec, ignore generated ones)
 *.spec
+!ocpp.spec
 
 # Virtual Environments
 .venv/
+.venv_win/
+.venv_lin/
+.venv_unx/
 venv/
 env/
 ENV/
@@ -37,3 +43,6 @@ Thumbs.db
 # Local environment variables
 .env
 .env.*
+
+# ocpp project files (contain API keys)
+.project

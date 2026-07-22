@@ -2,18 +2,20 @@
 
 ## Project
 
-Python CLI/TUI tool that sets up the correct environment keys (API credentials) and applies oh-my-opencode-slim (OMO) presets to a user's OpenCode configuration on the local machine.
+Python CLI tool that sets up the correct environment keys (API credentials) and applies oh-my-opencode-slim (OMO) presets to a user's OpenCode configuration on the local machine, then launches opencode with the right environment and venv.
 
 ## Build & Run
 
 ```bash
 # Create venv and install (first time)
-python -m venv .venv
-.venv\Scripts\Activate.ps1   # Windows
+python -m venv .venv_win   # Windows
+python -m venv .venv_lin   # Linux
+python -m venv .venv_unx   # macOS/Unix
+.venv_win\Scripts\Activate.ps1   # Windows
 pip install -e ".[dev]"
 
 # Run during development
-python -m opencode_profile_picker
+python -m ocpp
 
 # Lint & type-check before committing
 ruff check .
@@ -27,12 +29,13 @@ Single-file executable via PyInstaller or Nuitka. The executable must bundle all
 
 ## Architecture
 
-- **TUI framework**: Use Textual or Rich for the terminal interface. Do not use curses directly.
-- **Environment keys**: Help the user add/edit API keys (Anthropic, OpenAI, etc.) into OpenCode config or environment. Never log or print secret values. Detect the active shell before writing env vars.
-- **OMO presets**: Apply predefined oh-my-opencode-slim preset bundles (agents, models, prompts, skills, MCPs) to a user's OpenCode config.
+- **Launcher model**: ocpp builds a merged environment (current env + `.project` overrides + venv delta) and launches `opencode` as a subprocess with that environment. It does **not** modify the parent shell's environment variables. If shell persistence is needed in the future, an `eval`-compatible output mode can be added.
+- **CLI framework**: stdlib `argparse` with `rich` for listing/prompts. No full TUI for v1.
+- **Environment keys**: Read/write API keys (Anthropic, OpenAI, OpenRouter, Google/Gemini, xAI, Mistral) in a `.project` file in the project root. Never log or print secret values.
+- **OMO presets**: Read the global `oh-my-opencode-slim.json`, list available presets for the user to choose, and update the `"preset"` field via surgical text edit (not full re-serialization) to preserve comments and formatting.
 - **Discovery**: Scan known filesystem paths for OpenCode/OMO config. Do not shell out to `opencode` CLI for discovery — read config files directly.
 - **Config mutation**: Write changes back to the discovered config files. Never delete or reformat config the user didn't touch.
-- **Environment variables**: Set via the current shell session or by writing to shell profile files (`.bashrc`, `.zshrc`, PowerShell profile, etc.). Detect the active shell before writing.
+- **Venv detection**: Find platform-specific venv (`.venv_win`/`.venv_lin`/`.venv_unx` or generic `.venv`) in the project root. "Activation" = env manipulation (prepend bin dir to `PATH`, set `VIRTUAL_ENV`, unset `PYTHONHOME`), not sourcing activate scripts.
 
 ## Key Paths (platform-aware)
 
@@ -40,14 +43,18 @@ Single-file executable via PyInstaller or Nuitka. The executable must bundle all
 |------|---------|-------------|
 | OpenCode user config | `%APPDATA%\opencode\` or `~\.config\opencode\` | `~/.config/opencode/` |
 | OpenCode project config | `<project>\.opencode\` or `<project>\opencode.jsonc` | `<project>/.opencode/` or `<project>/opencode.jsonc` |
-| OMO config | `%APPDATA%\opencode\` (same tree) | `~/.config/opencode/` (same tree) |
-| Shell profiles | PowerShell `$PROFILE`, cmd via registry | `~/.bashrc`, `~/.zshrc`, `~/.profile` |
+| OMO config | `~\.config\opencode\oh-my-opencode-slim.json` (fallback: `%APPDATA%\opencode\`) | `~/.config/opencode/oh-my-opencode-slim.json` |
+| Python venv | `<project>\.venv_win\` (or `.venv\`) | `<project>/.venv_lin/` (Linux), `<project>/.venv_unx/` (macOS/Unix), or `.venv/` |
+| Venv bin subdir | `Scripts\` | `bin/` |
+| Project file | `<project>\.project` | `<project>/.project` |
 
 ## Conventions
 
 - Python 3.11+ (match the latest stable available).
-- `src/` layout: source under `src/opencode_profile_picker/`, tests under `tests/`.
+- `src/` layout: source under `src/ocpp/`, tests under `tests/`.
 - Use `pathlib.Path`, not `os.path`.
 - Platform-specific logic behind a clean abstraction — never scatter `if sys.platform` through business logic.
-- Config files are JSON/JSONC. Use a JSONC-tolerant parser (e.g., `json5`) for reading; preserve formatting on write when possible.
+- Config files are JSON/JSONC. Use a JSONC-tolerant parser (e.g., `json5`) for reading; preserve formatting on write via surgical text edits, not full re-serialization.
+- `.project` files are dotenv-style `KEY=value` with `#` comments. Reserved key: `OCPP_PROJECT_NAME`.
 - No destructive operations without explicit user confirmation.
+- Never log or print secret values. Mask API keys in all output.

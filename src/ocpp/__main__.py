@@ -1,4 +1,4 @@
-"""Entry point for the oopps CLI."""
+"""Entry point for the ocpp CLI."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ import sys
 
 
 def main() -> int:
-    """Run the oopps tool.
+    """Run the ocpp tool.
 
     Skeleton entry point. Real subcommands (env-key setup, OMO preset
-    application) will be wired in as they are implemented.
+    application, opencode launching) will be wired in as they are implemented.
     """
-    print("oopps — OpenCode environment key & OMO preset setup tool")
+    print("ocpp — Opencode Profile Picker")
     print("Not yet implemented. See AGENTS.md and openspec/ for the plan.")
     return 0
 
