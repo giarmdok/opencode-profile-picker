@@ -15,13 +15,32 @@ python -m venv .venv_unx   # macOS/Unix
 pip install -e ".[dev]"
 
 # Run during development
-python -m ocpp
+# NOTE: Use --no-launch when testing to avoid recursion
+python -m ocpp --no-launch
 
 # Lint & type-check before committing
 ruff check .
 ruff format --check .
 mypy src/
 ```
+
+## Testing `ocpp`
+
+### **⚠️ IMPORTANT: Use `--no-launch` when running inside OpenCode.**
+
+When testing `ocpp` or running it inside OpenCode, **always** use the `--no-launch` flag to prevent recursion:
+
+```bash
+python -m ocpp --no-launch
+```
+
+This ensures `ocpp` does not attempt to launch OpenCode while running inside OpenCode.
+
+### **Enforcement**
+- The `ocpp` CLI **launches OpenCode by default** unless `--no-launch` is specified.
+- **`--no-launch` is required** when testing or running inside OpenCode to prevent recursion.
+- **Never run `ocpp` without `--no-launch`** unless you are explicitly testing the launch behavior.
+- **You are responsible for using `--no-launch`** when running inside OpenCode.
 
 ## Packaging
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import os
 import sys
 from pathlib import Path
 
@@ -37,7 +38,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-launch",
         action="store_true",
-        help="Do everything except launch opencode.",
+        help="Do everything except launch OpenCode (required for testing).",
     )
     parser.add_argument(
         "--project-dir",
@@ -60,11 +61,27 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    """Run the full ocpp CLI flow."""
+    """Run the full ocpp CLI flow.
+
+    NOTE: Use --no-launch when testing to avoid recursion.
+    """
     parser = _build_parser()
+    parser.add_argument(
+        "--force-launch",
+        action="store_true",
+        help="Force launching OpenCode even when running inside OpenCode (not recommended).",
+    )
 
     # Step 1: Parse args with parse_known_args for passthrough
     parsed, passthrough_args = parser.parse_known_args()
+
+    # Step 2: Detect if running inside OpenCode
+    if "OPENCODE_SESSION_ID" in os.environ and not parsed.no_launch and not parsed.force_launch:
+        err_console.print(
+            "[red]Error:[/red] ocpp is running inside OpenCode. Use --no-launch or --force-launch."
+        )
+        return 1
+
     # Strip the leading '--' separator if present
     if passthrough_args and passthrough_args[0] == "--":
         passthrough_args = passthrough_args[1:]
@@ -161,7 +178,13 @@ def main() -> int:
             console.print(f"[dim]Would list presets from {global_config_path}[/dim]")
         else:
             # Display presets with rich table
-            table = Table(title="Available OMO Presets")
+            current_preset_name = next(
+                (info.name for info in preset_infos if info.is_current), None
+            )
+            table_title = "Available OMO Presets"
+            if current_preset_name:
+                table_title += f" (Current: {current_preset_name})"
+            table = Table(title=table_title)
             table.add_column("#", style="dim", width=4)
             table.add_column("Preset Name", style="cyan")
             table.add_column("Status", justify="center")
@@ -182,13 +205,28 @@ def main() -> int:
                 return 1
             selected_preset = parsed.preset
         else:
-            # Interactive selection via rich prompt
-            answer = Prompt.ask(
-                "Select preset number (or leave empty to skip)",
-                default="",
-                show_default=False,
+            # Find the index of the current preset
+            current_preset_index = next(
+                (idx for idx, info in enumerate(preset_infos) if info.is_current), None
             )
-            if answer.strip() == "":
+            # Interactive selection via rich prompt (default to current preset)
+            try:
+                answer = Prompt.ask(
+                    "Select preset number (or leave empty to use current preset, q to quit)",
+                    default=str(current_preset_index + 1)
+                    if current_preset_index is not None
+                    else "",
+                    show_default=False,
+                )
+            except EOFError:
+                # Non-interactive environment (e.g., tests, CI)
+                answer = ""
+                console.print("[dim]Non-interactive mode: Using current preset.[/dim]")
+
+            if answer.strip().lower() == "q":
+                console.print("[dim]Preset selection cancelled.[/dim]")
+                return 0
+            elif answer.strip() == "":
                 selected_preset = None
             else:
                 try:
@@ -202,10 +240,9 @@ def main() -> int:
                         return 1
                 except ValueError:
                     err_console.print(
-                        "[red]Error:[/red] Invalid input. Enter a number or leave empty."
+                        "[red]Error:[/red] Invalid input. Enter a number, leave empty, or press q to quit."
                     )
                     return 1
-
         # Step 9: Write preset
         if selected_preset is not None:
             if parsed.dry_run:
@@ -225,9 +262,9 @@ def main() -> int:
                     err_console.print(f"[red]Error:[/red] {exc}")
                     return 1
 
-    # Step 10: Launch opencode
+    # Step 10: Launch opencode (default behavior)
     if parsed.no_launch:
-        console.print("[green]Summary:[/green] All steps completed (--no-launch active).")
+        console.print("[green]Summary:[/green] All steps completed (--no-launch specified).")
         return 0
 
     if parsed.dry_run:
@@ -251,4 +288,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # Guard against running inside OpenCode (e.g., recursive launch)
+    if "OPENCODE_SESSION_ID" in os.environ:
+        err_console.print(
+            "[red]Error:[/red] ocpp cannot run inside OpenCode. Use it from a terminal instead."
+        )
+        sys.exit(1)
     sys.exit(main())

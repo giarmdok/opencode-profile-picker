@@ -1,19 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-"""PyInstaller spec for ocpp — single-file executable."""
 
 a = Analysis(
-    ["src/ocpp/__main__.py"],
+    ['src\\ocpp\\__main__.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[
-        "rich",
-        "rich.console",
-        "rich.table",
-        "rich.prompt",
-        "json5",
-    ],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -29,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="ocpp",
+    name='ocpp',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

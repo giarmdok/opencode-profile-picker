@@ -1,0 +1,355 @@
+{
+  "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
+  "disabled_agents": [],
+  "preset": "mistral",
+  "multiplexer": {
+    "type": "zellij",
+    "layout": "main-vertical",
+    "main_pane_size": 60,
+    "zellij_pane_mode": "agent-tab"
+  },
+  "presets": {
+    "openrouter": {
+      "orchestrator": {
+        "model": "openrouter/z-ai/glm-5.2",
+        "variant": "medium",
+        "skills": [
+          "*"
+        ],
+        "mcps": [
+          "*",
+          "!context7"
+        ]
+      },
+      "oracle": {
+        "model": "openrouter/deepseek/deepseek-r1",
+        "variant": "high",
+        "skills": [
+          "simplify"
+        ],
+        "mcps": []
+      },
+      "librarian": {
+        "model": "openrouter/deepseek/deepseek-v4-flash",
+        "variant": "low",
+        "skills": [],
+        "mcps": [
+          "websearch",
+          "context7",
+          "gh_grep"
+        ]
+      },
+      "explorer": {
+        "model": "openrouter/deepseek/deepseek-v3.2",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "designer": {
+        "model": "openrouter/deepseek/deepseek-v3.2",
+        "variant": "medium",
+        "skills": [],
+        "mcps": []
+      },
+      "fixer": {
+        "model": "openrouter/deepseek/deepseek-v4-flash",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "observer": {
+        "model": "openrouter/google/gemini-2.5-flash-lite",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "council": {
+        "model": "openrouter/qwen/qwen3.5-flash",
+        "variant": "high",
+        "skills": [],
+        "mcps": []
+      }
+    },
+    "mistral": {
+      "orchestrator": {
+        "model": "mistral/mistral-large-latest",
+        "variant": "medium",
+        "skills": ["*"],
+        "mcps": ["*", "!context7"]
+      },
+      "oracle": {
+        "model": "mistral/magistral-medium-latest",
+        "variant": "high",
+        "skills": ["simplify"],
+        "mcps": []
+      },
+      "librarian": {
+        "model": "mistral/ministral-8b-latest",
+        "variant": "low",
+        "skills": [],
+        "mcps": ["websearch", "context7", "gh_grep"]
+      },
+      "explorer": {
+        "model": "mistral/mistral-small-latest",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "designer": {
+        "model": "mistral/mistral-medium-latest",
+        "variant": "medium",
+        "skills": [],
+        "mcps": []
+      },
+      "fixer": {
+        "model": "mistral/codestral-latest",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "observer": {
+        "model": "mistral/pixtral-large-latest",
+        "variant": "max",
+        "skills": [],
+        "mcps": []
+      },
+      "council": {
+        "model": "mistral/magistral-medium-latest",
+        "variant": "high",
+        "skills": [],
+        "mcps": []
+      }
+    },
+    "google": {
+      "orchestrator": {
+        "model": "google/gemini-2.5-pro",
+        "variant": "medium",
+        "skills": ["*"],
+        "mcps": ["*", "!context7"]
+      },
+      "oracle": {
+        "model": "google/gemini-3.1-pro-preview",
+        "variant": "high",
+        "skills": ["simplify"],
+        "mcps": []
+      },
+      "librarian": {
+        "model": "google/gemini-3.5-flash",
+        "variant": "low",
+        "skills": [],
+        "mcps": ["websearch", "context7", "gh_grep"]
+      },
+      "explorer": {
+        "model": "google/gemini-2.5-flash",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "designer": {
+        "model": "google/gemini-2.5-flash",
+        "variant": "medium",
+        "skills": [],
+        "mcps": []
+      },
+      "fixer": {
+        "model": "google/gemini-3.5-flash",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "observer": {
+        "model": "google/gemini-2.5-flash-lite",
+        "variant": "max",
+        "skills": [],
+        "mcps": []
+      },
+      "council": {
+        "model": "google/gemini-3.1-pro-preview",
+        "variant": "high",
+        "skills": [],
+        "mcps": []
+      }
+    },
+    "openai": {
+      "orchestrator": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "medium",
+        "skills": ["*"],
+        "mcps": ["*", "!context7"]
+      },
+      "oracle": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "high",
+        "skills": ["simplify"],
+        "mcps": []
+      },
+      "librarian": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "low",
+        "skills": [],
+        "mcps": ["websearch", "context7", "gh_grep"]
+      },
+      "explorer": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "designer": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "medium",
+        "skills": [],
+        "mcps": []
+      },
+      "fixer": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "observer": {
+        "model": "openai/gpt-4o",
+        "variant": "max",
+        "skills": [],
+        "mcps": []
+      },
+      "council": {
+        "model": "openai/gpt-5.6-luna",
+        "variant": "high",
+        "skills": [],
+        "mcps": []
+      }
+    },
+    "xai": {
+      "orchestrator": {
+        "model": "xai/grok-4.5",
+        "variant": "medium",
+        "skills": ["*"],
+        "mcps": ["*", "!context7"]
+      },
+      "oracle": {
+        "model": "xai/grok-4.20-0309-reasoning",
+        "variant": "high",
+        "skills": ["simplify"],
+        "mcps": []
+      },
+      "librarian": {
+        "model": "xai/grok-4.3",
+        "variant": "low",
+        "skills": [],
+        "mcps": ["websearch", "context7", "gh_grep"]
+      },
+      "explorer": {
+        "model": "xai/grok-4.3",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "designer": {
+        "model": "xai/grok-4.3",
+        "variant": "medium",
+        "skills": [],
+        "mcps": []
+      },
+      "fixer": {
+        "model": "xai/grok-4.3",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "observer": {
+        "model": "xai/grok-4.3",
+        "variant": "max",
+        "skills": [],
+        "mcps": []
+      },
+      "council": {
+        "model": "xai/grok-4.5",
+        "variant": "high",
+        "skills": [],
+        "mcps": []
+      }
+    },
+    "anthropic": {
+      "orchestrator": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "medium",
+        "skills": ["*"],
+        "mcps": ["*", "!context7"]
+      },
+      "oracle": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "high",
+        "skills": ["simplify"],
+        "mcps": []
+      },
+      "librarian": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "low",
+        "skills": [],
+        "mcps": ["websearch", "context7", "gh_grep"]
+      },
+      "explorer": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "designer": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "medium",
+        "skills": [],
+        "mcps": []
+      },
+      "fixer": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "observer": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "max",
+        "skills": [],
+        "mcps": []
+      },
+      "council": {
+        "model": "anthropic/claude-haiku-4.5",
+        "variant": "high",
+        "skills": [],
+        "mcps": []
+      }
+    }
+  },
+  "council": {
+    "default_preset": "council-diverse",
+    "presets": {
+      "council-diverse": {
+        "anthropic": {
+          "model": "anthropic/claude-fable-5",
+          "variant": "high"
+        },
+        "openai": {
+          "model": "openai/gpt-5.6-sol",
+          "variant": "high"
+        },
+        "xai": {
+          "model": "xai/grok-4.5",
+          "variant": "high"
+        },
+        "google": {
+          "model": "google/gemini-3.1-pro-preview",
+          "variant": "high"
+        },
+        "mistral": {
+          "model": "mistral/magistral-medium-latest",
+          "variant": "high"
+        },
+        "deepseek": {
+          "model": "openrouter/deepseek/deepseek-r1",
+          "variant": "high"
+        }
+      }
+    }
+  }
+}

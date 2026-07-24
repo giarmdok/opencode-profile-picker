@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from rich.console import Console
 import json5
 
 from ocpp.platform import Platform
@@ -45,13 +46,24 @@ class PresetInfo(NamedTuple):
 
 
 def discover_config(platform: Platform) -> Path:
-    """Find the first existing OMO config file from platform.omo_config_paths.
+    """Find the first existing OMO config file from platform.omo_config_paths or local project.
+
+    Checks for a local config at `<project_root>/.opencode/oh-my-opencode-slim.jsonc`
+    before falling back to global paths.
 
     Raises
     ------
     FileNotFoundError
         If no config file exists at any of the searched paths.
     """
+    # Check for local config first
+    project_root = Path.cwd()
+    local_path = project_root / ".opencode" / "oh-my-opencode-slim.jsonc"
+    if local_path.exists():
+        logger.debug("Found local OMO config at %s", local_path)
+        return local_path
+
+    # Fall back to global paths
     for path in platform.omo_config_paths:
         if path.exists():
             logger.debug("Found OMO config at %s", path)
@@ -94,7 +106,30 @@ def parse_config(filepath: Path) -> dict[str, Any]:
     ValueError
         On JSON5 parse failure.
     """
-    raw = filepath.read_text(encoding="utf-8")
+    # Read the file with explicit sharing flags to mimic 'type' behavior
+    import os
+    max_retries = 3
+    retry_delay = 0.5  # seconds
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            # Use low-level open with sharing flags to avoid lock sensitivity
+            fd = os.open(str(filepath), os.O_RDONLY | os.O_BINARY)
+            with open(fd, "r", encoding="utf-8") as f:
+                raw = f.read()
+            break
+        except PermissionError as exc:
+            last_exception = exc
+            logger.warning(
+                "File lock detected, retrying (%d/%d)...: %s",
+                attempt + 1,
+                max_retries,
+                exc,
+            )
+            import time
+            time.sleep(retry_delay)
+    else:
+        raise OmoError(f"Failed to read OMO config: {last_exception}") from last_exception
     try:
         data = json5.loads(raw)
     except ValueError as exc:
@@ -185,12 +220,9 @@ def set_preset(
 
     local_path = get_local_config_path(project_root)
 
+    # Skip confirmation for non-interactive preset selection
     if confirm:
-        response = input(
-            f"Copy OMO config to {local_path} and set preset from '{old}' to '{new_preset}'? [y/N] "
-        )
-        if response.lower() not in ("y", "yes"):
-            return False
+        Console().print(f"[dim]Setting preset from '{old}' to '{new_preset}'...[/dim]")
 
     # Ensure the .opencode/ directory exists
     local_path.parent.mkdir(parents=True, exist_ok=True)
@@ -200,8 +232,42 @@ def set_preset(
         bak_path = local_path.with_suffix(local_path.suffix + ".bak")
         shutil.copy2(local_path, bak_path)
 
-    # Copy global config to local path (never modify the global file)
-    shutil.copy2(global_config_path, local_path)
+    # Read the global config into memory using low-level read logic
+    max_retries = 3
+    retry_delay = 0.5  # seconds
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            # Use low-level open with sharing flags to avoid lock sensitivity
+            import os
+            fd = os.open(str(global_config_path), os.O_RDONLY | os.O_BINARY)
+            with open(fd, "r", encoding="utf-8") as f:
+                raw_text = f.read()
+            break
+        except PermissionError as exc:
+            last_exception = exc
+            logger.warning(
+                "File lock detected, retrying (%d/%d)...: %s",
+                attempt + 1,
+                max_retries,
+                exc,
+            )
+            import time
+            time.sleep(retry_delay)
+    else:
+        raise OmoError(f"Failed to read OMO config: {last_exception}") from last_exception
+
+    # Write the local .jsonc file directly from memory
+    fd, tmp_path_str = tempfile.mkstemp(dir=local_path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(raw_text)
+        os.replace(tmp_path_str, str(local_path))
+    except BaseException:
+        # Clean up temp file on failure
+        if os.path.exists(tmp_path_str):
+            os.unlink(tmp_path_str)
+        raise
 
     # Read the local copy's raw text for surgical edit
     raw_text = local_path.read_text(encoding="utf-8")
