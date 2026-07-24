@@ -126,6 +126,7 @@ def parse_config(filepath: Path) -> dict[str, Any]:
                 exc,
             )
             import time
+
             time.sleep(retry_delay)
     else:
         raise OmoError(f"Failed to read OMO config: {last_exception}") from last_exception
@@ -253,6 +254,7 @@ def set_preset(
                 exc,
             )
             import time
+
             time.sleep(retry_delay)
     else:
         raise OmoError(f"Failed to read OMO config: {last_exception}") from last_exception
