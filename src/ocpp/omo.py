@@ -10,8 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from rich.console import Console
 import json5
+from rich.console import Console
 
 from ocpp.platform import Platform
 
@@ -107,7 +107,6 @@ def parse_config(filepath: Path) -> dict[str, Any]:
         On JSON5 parse failure.
     """
     # Read the file with explicit sharing flags to mimic 'type' behavior
-    import os
     max_retries = 3
     retry_delay = 0.5  # seconds
     last_exception = None
@@ -115,7 +114,7 @@ def parse_config(filepath: Path) -> dict[str, Any]:
         try:
             # Use low-level open with sharing flags to avoid lock sensitivity
             fd = os.open(str(filepath), os.O_RDONLY | os.O_BINARY)
-            with open(fd, "r", encoding="utf-8") as f:
+            with open(fd, encoding="utf-8") as f:
                 raw = f.read()
             break
         except PermissionError as exc:
@@ -240,8 +239,9 @@ def set_preset(
         try:
             # Use low-level open with sharing flags to avoid lock sensitivity
             import os
+
             fd = os.open(str(global_config_path), os.O_RDONLY | os.O_BINARY)
-            with open(fd, "r", encoding="utf-8") as f:
+            with open(fd, encoding="utf-8") as f:
                 raw_text = f.read()
             break
         except PermissionError as exc:

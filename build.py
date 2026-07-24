@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 def build_pyinstaller(clean: bool = False) -> None:
     """Build ocpp executable using PyInstaller."""
     if clean:
@@ -25,8 +26,9 @@ def build_pyinstaller(clean: bool = False) -> None:
     print("Building ocpp executable with PyInstaller...")
     result = subprocess.run(
         [
-            sys.executable, 
-            "-m", "PyInstaller",
+            sys.executable,
+            "-m",
+            "PyInstaller",
             "--onefile",
             "--name", "ocpp",
             "--distpath", "dist",
@@ -47,6 +49,7 @@ def build_pyinstaller(clean: bool = False) -> None:
     print("  Windows: .\\dist\\ocpp.exe")
     print("  macOS/Linux: ./dist/ocpp")
 
+
 def build_nuitka(clean: bool = False) -> None:
     """Build ocpp executable using Nuitka."""
     if clean:
@@ -59,8 +62,9 @@ def build_nuitka(clean: bool = False) -> None:
     print("Building ocpp executable with Nuitka...")
     result = subprocess.run(
         [
-            sys.executable, 
-            "-m", "nuitka",
+            sys.executable,
+            "-m",
+            "nuitka",
             "--onefile",
             "--output-dir=dist",
             "--output-filename=ocpp",
@@ -80,9 +84,12 @@ def build_nuitka(clean: bool = False) -> None:
     print("  Windows: .\\dist\\ocpp.exe")
     print("  macOS/Linux: ./dist/ocpp")
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build ocpp standalone executable.")
-    parser.add_argument("--clean", action="store_true", help="Clean build directories before building.")
+    parser.add_argument(
+        "--clean", action="store_true", help="Clean build directories before building."
+    )
     parser.add_argument("--nuitka", action="store_true", help="Use Nuitka instead of PyInstaller.")
     args = parser.parse_args()
 
