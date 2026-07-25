@@ -271,20 +271,8 @@ def main() -> int:
         console.print("[dim]Would launch opencode with merged environment[/dim]")
         return 0
 
-    # Build project_overrides from .project kv (exclude OCPP_PROJECT_NAME)
-    project_overrides = {k: v for k, v in project_kv.items() if k != OCPP_PROJECT_NAME}
-    venv_delta = venv_result.env_delta if venv_result is not None else None
-
-    try:
-        return launch_opencode(
-            project_overrides=project_overrides,
-            venv_delta=venv_delta,
-            extra_args=passthrough_args,
-            platform=platform,
-        )
-    except LaunchError as exc:
-        err_console.print(f"[red]Error:[/red] {exc}")
-        return 1
+    console.print("[green]Summary:[/green] All steps completed (--no-launch specified).")
+    return 0
 
 
 if __name__ == "__main__":

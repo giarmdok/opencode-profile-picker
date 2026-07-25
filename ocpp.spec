@@ -5,7 +5,7 @@ a = Analysis(
     ['src\\ocpp\\__main__.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('src/ocpp', 'ocpp')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
