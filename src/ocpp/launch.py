@@ -85,20 +85,6 @@ def launch_opencode(
         extra_args = []
 
     try:
-        # Display venv info if detected
-        if venv_delta:
-            from rich.console import Console
-
-            console = Console()
-            venv_path = venv_delta.get("VIRTUAL_ENV", "Unknown")
-            console.print(
-                f"[bold green]Detected virtual environment:[/bold green] [bold yellow]{venv_path}[/bold yellow]"
-            )
-            console.print("[bold green]Activating virtual environment...[/bold green]")
-            import time
-
-            time.sleep(5)  # Pause for 5 seconds to allow reading
-
         merged_env = build_merged_env(
             project_overrides=project_overrides,
             venv_delta=venv_delta,
@@ -115,16 +101,12 @@ def launch_opencode(
                 raise LaunchError(f"Failed to launch opencode: {exc}") from exc
         else:
             # Windows: subprocess + explicit handle redirection + graceful exit
-            subprocess.Popen(
+            result = subprocess.run(
                 args,
                 env=merged_env,
                 shell=False,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.DETACHED_PROCESS,
             )
-            sys.exit(0)
+            return result.returncode
     except LaunchError as error:
         print(str(error), file=sys.stderr)
         return 1

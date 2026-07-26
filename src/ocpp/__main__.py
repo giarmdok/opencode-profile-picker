@@ -15,6 +15,7 @@ from rich.table import Table
 from ocpp.bootstrap import run_bootstrap
 from ocpp.env import load_env_file
 
+from ocpp.launch import LaunchError, launch_opencode
 from ocpp.omo import OmoError, PresetInfo, discover_config, list_presets
 from ocpp.omo import set_preset as omo_set_preset
 from ocpp.platform import Platform
@@ -50,6 +51,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show actions without writing or launching.",
     )
     parser.add_argument(
+        "--no-launch",
+        action="store_true",
+        help="Set up environment but do not launch opencode.",
+    )
+    parser.add_argument(
         "--init",
         action="store_true",
         help="Force bootstrap even if .project already exists.",
@@ -72,7 +78,7 @@ def main() -> int:
         for key, old_value in overridden_keys.items():
             masked_old = f"{old_value[:5]}****" if old_value else "None"
             masked_new = f"{os.environ[key][:5]}****"
-            console.print(f"  - {key}: {masked_old} → {masked_new}")
+            console.print(f"  - {key}: {masked_old} -> {masked_new}")
     else:
         console.print("[green]No .env file found or no overrides applied.[/green]")
 
@@ -148,6 +154,7 @@ def main() -> int:
             return 1
 
     # Step 6: Detect venv
+    venv_delta: dict[str, str | None] | None = None
     venv_result = detect_venv(platform)
     if parsed.dry_run:
         if venv_result is not None:
@@ -159,6 +166,11 @@ def main() -> int:
             err_console.print(
                 "[yellow]Warning:[/yellow] No venv found, continuing without venv activation"
             )
+        else:
+            console.print(
+                f"[bold green]Activating venv:[/bold green] [yellow]{venv_result.path}[/yellow]"
+            )
+            venv_delta = venv_result.env_delta
 
     # Step 7: List presets — discover config
     global_config_path: Path | None = None
@@ -263,6 +275,24 @@ def main() -> int:
                     return 1
 
     # Step 10: Launch opencode (default behavior)
+    if parsed.no_launch:
+        console.print("[yellow]--no-launch specified, skipping opencode launch.[/yellow]")
+        return 0
+
+    if parsed.dry_run:
+        console.print("[dim]Would launch opencode with the environment overrides.[/dim]")
+        return 0
+
+    try:
+        return launch_opencode(
+            project_overrides=project_kv,
+            venv_delta=venv_delta,
+            extra_args=passthrough_args,
+            platform=platform,
+        )
+    except LaunchError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        return 1
 
 
 
