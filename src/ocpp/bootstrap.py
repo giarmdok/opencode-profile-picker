@@ -9,7 +9,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from ocpp.platform import Platform
-from ocpp.project import OCPP_PROJECT_NAME, LineRecord, mask_value, serialize_project
+from ocpp.project import OCPP_PROJECT_NAME, LineRecord, serialize_project
 
 __all__ = [
     "API_KEY_ALLOWLIST",
@@ -46,18 +46,6 @@ def derive_project_name(project_root: Path) -> str:
     name = name.strip("-")
     return name
 
-
-def harvest_api_keys() -> dict[str, str]:
-    """Iterate *API_KEY_ALLOWLIST*, collect non-empty values from ``os.environ``.
-
-    Skip ``None``, empty string, and whitespace-only values.
-    """
-    result: dict[str, str] = {}
-    for key in API_KEY_ALLOWLIST:
-        value = os.environ.get(key)
-        if value is not None and value.strip():
-            result[key] = value
-    return result
 
 
 def check_gitignore(project_root: Path) -> bool:
@@ -131,30 +119,21 @@ def run_bootstrap(platform: Platform, confirm: bool = True) -> bool:
     # Step 2: derive project name
     project_name = derive_project_name(project_root)
 
-    # Step 3: harvest API keys
-    api_keys = harvest_api_keys()
-
-    # Step 4: confirmation prompt
+    # Step 3: confirmation prompt
     if confirm:
         print(f"\nCreating .project file at: {project_root / '.project'}\n")
-        print(f"  {mask_value(OCPP_PROJECT_NAME, project_name)}")
-        for key in API_KEY_ALLOWLIST:
-            if key in api_keys:
-                print(f"  {mask_value(key, api_keys[key])}")
+        print(f"  {OCPP_PROJECT_NAME}={project_name}")
         print()
         answer = input("Proceed? [y/N] ").strip().lower()
         if answer not in ("y", "yes"):
             return False
 
-    # Step 5: check gitignore
+    # Step 4: check gitignore
     offer_gitignore_append(project_root)
 
-    # Step 6: build kv and write file
+    # Step 5: build kv and write file
     kv: OrderedDict[str, str] = OrderedDict()
     kv[OCPP_PROJECT_NAME] = project_name
-    for key in API_KEY_ALLOWLIST:
-        if key in api_keys:
-            kv[key] = api_keys[key]
 
     # Add comment header
     lines: list[LineRecord] = [
@@ -163,7 +142,7 @@ def run_bootstrap(platform: Platform, confirm: bool = True) -> bool:
 
     serialize_project(project_file, kv, lines)
 
-    # Step 7: set file permissions
+    # Step 6: set file permissions
     try:
         project_file.chmod(0o600)
     except Exception:

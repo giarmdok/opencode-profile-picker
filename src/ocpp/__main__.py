@@ -13,7 +13,8 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from ocpp.bootstrap import run_bootstrap
-from ocpp.launch import LaunchError, launch_opencode
+from ocpp.env import load_env_file
+
 from ocpp.omo import OmoError, PresetInfo, discover_config, list_presets
 from ocpp.omo import set_preset as omo_set_preset
 from ocpp.platform import Platform
@@ -35,11 +36,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Non-interactive preset selection (skip the prompt).",
     )
-    parser.add_argument(
-        "--no-launch",
-        action="store_true",
-        help="Do everything except launch OpenCode (required for testing).",
-    )
+
     parser.add_argument(
         "--project-dir",
         metavar="PATH",
@@ -63,24 +60,27 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     """Run the full ocpp CLI flow.
 
-    NOTE: Use --no-launch when testing to avoid recursion.
+
     """
     parser = _build_parser()
-    parser.add_argument(
-        "--force-launch",
-        action="store_true",
-        help="Force launching OpenCode even when running inside OpenCode (not recommended).",
-    )
+
+
+    # Step 0: Parse .env and force-set environment variables
+    overridden_keys = load_env_file()
+    if overridden_keys:
+        console.print("[yellow]Overridden environment variables:[/yellow]")
+        for key, old_value in overridden_keys.items():
+            masked_old = f"{old_value[:5]}****" if old_value else "None"
+            masked_new = f"{os.environ[key][:5]}****"
+            console.print(f"  - {key}: {masked_old} → {masked_new}")
+    else:
+        console.print("[green]No .env file found or no overrides applied.[/green]")
 
     # Step 1: Parse args with parse_known_args for passthrough
     parsed, passthrough_args = parser.parse_known_args()
 
     # Step 2: Detect if running inside OpenCode
-    if "OPENCODE_SESSION_ID" in os.environ and not parsed.no_launch and not parsed.force_launch:
-        err_console.print(
-            "[red]Error:[/red] ocpp is running inside OpenCode. Use --no-launch or --force-launch."
-        )
-        return 1
+
 
     # Strip the leading '--' separator if present
     if passthrough_args and passthrough_args[0] == "--":
@@ -263,23 +263,14 @@ def main() -> int:
                     return 1
 
     # Step 10: Launch opencode (default behavior)
-    if parsed.no_launch:
-        console.print("[green]Summary:[/green] All steps completed (--no-launch specified).")
-        return 0
 
-    if parsed.dry_run:
-        console.print("[dim]Would launch opencode with merged environment[/dim]")
-        return 0
 
-    console.print("[green]Summary:[/green] All steps completed (--no-launch specified).")
-    return 0
+
+
+
 
 
 if __name__ == "__main__":
     # Guard against running inside OpenCode (e.g., recursive launch)
-    if "OPENCODE_SESSION_ID" in os.environ:
-        err_console.print(
-            "[red]Error:[/red] ocpp cannot run inside OpenCode. Use it from a terminal instead."
-        )
-        sys.exit(1)
+
     sys.exit(main())

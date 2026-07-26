@@ -9,10 +9,8 @@ from pathlib import Path
 import pytest
 
 from ocpp.bootstrap import (
-    API_KEY_ALLOWLIST,
     check_gitignore,
     derive_project_name,
-    harvest_api_keys,
     offer_gitignore_append,
     run_bootstrap,
 )
@@ -73,42 +71,6 @@ class TestDeriveProjectName:
 # harvest_api_keys
 # ---------------------------------------------------------------------------
 
-
-class TestHarvestApiKeys:
-    """Environment variable harvesting."""
-
-    def test_all_keys_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        for key in API_KEY_ALLOWLIST:
-            monkeypatch.setenv(key, f"sk-{key.lower()}-val")
-        result = harvest_api_keys()
-        for key in API_KEY_ALLOWLIST:
-            assert result[key] == f"sk-{key.lower()}-val"
-        assert len(result) == len(API_KEY_ALLOWLIST)
-
-    def test_some_keys_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
-        # Leave the rest unset
-        for key in API_KEY_ALLOWLIST:
-            if key not in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
-                monkeypatch.delenv(key, raising=False)
-        result = harvest_api_keys()
-        assert result == {
-            "ANTHROPIC_API_KEY": "sk-ant-test",
-            "OPENAI_API_KEY": "sk-openai-test",
-        }
-
-    def test_all_keys_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        for key in API_KEY_ALLOWLIST:
-            monkeypatch.delenv(key, raising=False)
-        result = harvest_api_keys()
-        assert result == {}
-
-    def test_whitespace_only_values_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        for key in API_KEY_ALLOWLIST:
-            monkeypatch.setenv(key, "   ")
-        result = harvest_api_keys()
-        assert result == {}
 
 
 # ---------------------------------------------------------------------------
@@ -243,35 +205,22 @@ class TestRunBootstrap:
         assert result is False
         assert not (tmp_path / ".project").is_file()
 
-    def test_values_masked_in_confirmation(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-    ) -> None:
-        platform = make_platform(tmp_path)
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-secret-value")
-        monkeypatch.setattr("builtins.input", lambda _: "y")
-        run_bootstrap(platform, confirm=True)
-        captured = capsys.readouterr()
-        # API key should be masked
-        assert "ANTHROPIC_API_KEY=***" in captured.out
-        # Secret value should NOT appear in output
-        assert "sk-secret-value" not in captured.out
-
     def test_bootstrap_with_some_keys(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Partial key set in environment."""
         platform = make_platform(tmp_path)
         # Clear all API keys first, then set only those we want
-        for key in API_KEY_ALLOWLIST:
-            monkeypatch.delenv(key, raising=False)
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-1")
-        monkeypatch.setenv("XAI_API_KEY", "sk-xai-2")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
         # OCPP_PROJECT_NAME should be derived from dir name
         result = run_bootstrap(platform, confirm=False)
         assert result is True
         content = (tmp_path / ".project").read_text(encoding="utf-8")
-        assert "ANTHROPIC_API_KEY=sk-ant-1" in content
-        assert "XAI_API_KEY=sk-xai-2" in content
         # Keys not in env should not appear
         assert "OPENAI_API_KEY=" not in content
         # Project name should be the directory name
@@ -340,8 +289,12 @@ class TestBootstrapFullIntegration:
 
         platform = make_platform(tmp_path)
         # Clear all API keys first, then set only what we need
-        for key in API_KEY_ALLOWLIST:
-            monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-real")
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-real")
         monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-real")
