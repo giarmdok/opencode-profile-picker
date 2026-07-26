@@ -2,21 +2,18 @@
 
 ## Project
 
-Python CLI tool that sets up the correct environment keys (API credentials) and applies oh-my-opencode-slim (OMO) presets to a user's OpenCode configuration on the local machine, then launches opencode with the right environment and venv.
+Python CLI tool that sets up the correct environment keys (API credentials), applies oh-my-opencode-slim (OMO) presets, and exports the resulting environment variables for the parent shell to use.
 
 ## Build & Run
 
 ```bash
 # Create venv and install (first time)
 python -m venv .venv_win   # Windows
-python -m venv .venv_lin   # Linux
-python -m venv .venv_unx   # macOS/Unix
-.venv_win\Scripts\Activate.ps1   # Windows
+# ... (activate venv)
 pip install -e ".[dev]"
 
 # Run during development
-# NOTE: Use --no-launch when testing to avoid recursion
-python -m ocpp --no-launch
+python -m ocpp
 
 # Lint & type-check before committing
 ruff check .
@@ -24,23 +21,15 @@ ruff format --check .
 mypy src/
 ```
 
-## Testing `ocpp`
+### Build Executable
 
-### **⚠️ IMPORTANT: Use `--no-launch` when running inside OpenCode.**
-
-When testing `ocpp` or running it inside OpenCode, **always** use the `--no-launch` flag to prevent recursion:
+To create a single-file executable, use PyInstaller:
 
 ```bash
-python -m ocpp --no-launch
+pyinstaller --onefile --name ocpp src/ocpp/__main__.py
 ```
 
-This ensures `ocpp` does not attempt to launch OpenCode while running inside OpenCode.
-
-### **Enforcement**
-- The `ocpp` CLI **launches OpenCode by default** unless `--no-launch` is specified.
-- **`--no-launch` is required** when testing or running inside OpenCode to prevent recursion.
-- **Never run `ocpp` without `--no-launch`** unless you are explicitly testing the launch behavior.
-- **You are responsible for using `--no-launch`** when running inside OpenCode.
+The final executable will be located at `dist/ocpp.exe` (Windows) or `dist/ocpp` (macOS/Linux).
 
 ## Packaging
 
@@ -48,7 +37,7 @@ Single-file executable via PyInstaller or Nuitka. The executable must bundle all
 
 ## Architecture
 
-- **Launcher model**: ocpp builds a merged environment (current env + `.project` overrides + venv delta) and launches `opencode` as a subprocess with that environment. It does **not** modify the parent shell's environment variables. If shell persistence is needed in the future, an `eval`-compatible output mode can be added.
+- **Environment loader model**: `ocpp` prints shell-compatible commands (`export VAR=...` or `$Env:VAR=...`) to stdout. It is intended to be used with a shell's `eval` command (e.g., `eval $(ocpp)`) to load the project and venv environment into the current interactive shell session. All user-facing messages are printed to stderr to keep stdout clean for piping.
 - **CLI framework**: stdlib `argparse` with `rich` for listing/prompts. No full TUI for v1.
 - **Environment keys**: Read/write API keys (Anthropic, OpenAI, OpenRouter, Google/Gemini, xAI, Mistral) in a `.project` file in the project root. Never log or print secret values.
 - **OMO presets**: Read the global `oh-my-opencode-slim.json`, list available presets for the user to choose, and update the `"preset"` field via surgical text edit (not full re-serialization) to preserve comments and formatting.
