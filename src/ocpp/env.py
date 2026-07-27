@@ -7,12 +7,11 @@ as a dictionary.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
 
 from dotenv import dotenv_values
 
 
-def load_dotenv_file(env_path: Path) -> Dict[str, str | None]:
+def load_dotenv_file(env_path: Path) -> dict[str, str | None]:
     """
     Parse a .env file and return its contents as a dictionary.
 
@@ -35,7 +34,7 @@ def load_dotenv_file(env_path: Path) -> Dict[str, str | None]:
 
 def load_env_file(
     project_root: Path,
-) -> Dict[str, str | None]:
+) -> dict[str, str | None]:
     """
     Load environment variables from a .env file in the project root.
 
