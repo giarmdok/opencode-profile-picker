@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
   "disabled_agents": [],
-  "preset": "mistral",
+  "preset": "google",
   "multiplexer": {
     "type": "zellij",
     "layout": "main-vertical",

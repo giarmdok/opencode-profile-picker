@@ -1,52 +1,50 @@
 """
 .env file parser for opencode-profile-picker.
 
-This module provides functionality to parse .env files and force-set environment variables,
-overriding existing values in os.environ.
+This module provides functionality to parse a .env file and return its contents
+as a dictionary.
 """
-import os
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Dict, Optional
 
 from dotenv import dotenv_values
 
 
-def load_env_file(env_path: Optional[Path] = None) -> Dict[str, str]:
+def load_dotenv_file(env_path: Path) -> Dict[str, str | None]:
     """
-    Load and force-set environment variables from a .env file.
+    Parse a .env file and return its contents as a dictionary.
 
     Args:
-        env_path: Path to the .env file. Defaults to `.env` in the project root.
+        env_path: The path to the .env file.
 
     Returns:
-        Dict of overridden keys (old_value -> new_value) for logging.
-
-    Behavior:
-        - If `.env` does not exist, returns an empty dict.
-        - If `.env` is empty, returns an empty dict.
-        - Force-sets keys in os.environ (overrides existing values).
-        - Skips malformed lines (logs a warning).
+        A dictionary of key-value pairs from the .env file.
+        Returns an empty dictionary if the file does not exist or is empty.
     """
-    if env_path is None:
-        env_path = Path.cwd() / ".env"
-
-    overridden_keys: Dict[str, str] = {}
-
-    if not env_path.exists():
-        return overridden_keys
+    if not env_path.is_file():
+        return {}
 
     # Parse .env file using python-dotenv
-    env_vars = dotenv_values(env_path)
+    # It gracefully handles non-existent files, but we check above for clarity.
+    # It returns an OrderedDict, but we can treat it as a Dict.
+    # Values can be None if a key is present without a value.
+    return dotenv_values(env_path)
 
-    if not env_vars:
-        return overridden_keys
 
-    # Force-set keys in os.environ and track overrides
-    for key, new_value in env_vars.items():
-        if new_value is None or new_value == "":
-            continue  # Skip None or empty values (invalid lines)
-        if key in os.environ:
-            overridden_keys[key] = os.environ[key]
-        os.environ[key] = new_value
+def load_env_file(
+    project_root: Path,
+) -> Dict[str, str | None]:
+    """
+    Load environment variables from a .env file in the project root.
 
-    return overridden_keys
+    Args:
+        project_root: The root directory of the project.
+
+    Returns:
+        A dictionary of key-value pairs from the .env file.
+        Returns an empty dictionary if the file does not exist or is empty.
+    """
+    env_path = project_root / ".env"
+    return load_dotenv_file(env_path)

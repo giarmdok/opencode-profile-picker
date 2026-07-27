@@ -9,7 +9,12 @@ from collections import OrderedDict
 from pathlib import Path
 
 from ocpp.platform import Platform
-from ocpp.project import OCPP_PROJECT_NAME, LineRecord, serialize_project
+from ocpp.project import (
+    OCPP_PROJECT_NAME,
+    LineRecord,
+    mask_dict,
+    serialize_project,
+)
 
 __all__ = [
     "API_KEY_ALLOWLIST",
@@ -33,28 +38,25 @@ API_KEY_ALLOWLIST = [
 
 
 def derive_project_name(project_root: Path) -> str:
-    """Return sanitized last component of *project_root*.
-
-    Strip whitespace, replace sequences of non-alphanumeric characters
-    (excluding ``-``, ``_``, ``.``) with a single ``-``.
-    """
+    """Return sanitized last component of *project_root*."""
     name = project_root.name.strip()
-    # Replace sequences of any character that is not alphanumeric, -, _, or .
-    # with a single -
     name = re.sub(r"[^a-zA-Z0-9\-_.]+", "-", name)
-    # Strip leading/trailing hyphens
     name = name.strip("-")
     return name
 
 
+def harvest_api_keys() -> dict[str, str]:
+    """Return a dict of API keys found in the environment."""
+    found_keys: dict[str, str] = {}
+    for key in API_KEY_ALLOWLIST:
+        value = os.environ.get(key)
+        if value:
+            found_keys[key] = value
+    return found_keys
+
 
 def check_gitignore(project_root: Path) -> bool:
-    """Return ``True`` if ``.project`` is already gitignored.
-
-    Check the project-level ``.gitignore`` for a line matching ``'.project'``.
-    If no ``.git`` directory exists, return ``True`` (not a git repo,
-    no warning needed).
-    """
+    """Return ``True`` if ``.project`` is already gitignored."""
     git_dir = project_root / ".git"
     if not git_dir.is_dir():
         return True
@@ -66,7 +68,6 @@ def check_gitignore(project_root: Path) -> bool:
     text = gitignore_path.read_text(encoding="utf-8", errors="replace")
     for line in text.splitlines():
         stripped = line.strip()
-        # Ignore empty lines and comments
         if not stripped or stripped.startswith("#"):
             continue
         if stripped == ".project":
@@ -75,11 +76,7 @@ def check_gitignore(project_root: Path) -> bool:
 
 
 def offer_gitignore_append(project_root: Path) -> None:
-    """If ``.project`` is not gitignored and ``.git`` exists, prompt the user.
-
-    Warn and offer to append ``'.project'`` to ``.gitignore``.
-    If declined, continue without modifying.
-    """
+    """If ``.project`` is not gitignored and ``.git`` exists, prompt the user."""
     if check_gitignore(project_root):
         return
 
@@ -89,7 +86,7 @@ def offer_gitignore_append(project_root: Path) -> None:
 
     print("Warning: .project contains API keys but is not in .gitignore.")
     answer = input("Append '.project' to .gitignore? [y/N] ").strip().lower()
-    if answer == "y" or answer == "yes":
+    if answer in ("y", "yes"):
         gitignore_path = project_root / ".gitignore"
         with gitignore_path.open("a", encoding="utf-8") as fh:
             fh.write("\n.project\n")
@@ -97,52 +94,39 @@ def offer_gitignore_append(project_root: Path) -> None:
 
 
 def run_bootstrap(platform: Platform, confirm: bool = True) -> bool:
-    """Full bootstrap workflow.
-
-    1. Check if ``.project`` exists in ``platform.project_root`` —
-       if yes, return ``True`` (skip).
-    2. Derive project name from ``platform.project_root.name``.
-    3. Harvest API keys from ``os.environ``.
-    4. If *confirm*: show summary with masked values, prompt ``[y/N]``.
-    5. Check gitignore, offer to append if needed.
-    6. Write ``.project`` file using :func:`serialize_project`.
-    7. Set file permissions to ``0o600`` (handle Windows gracefully).
-    8. Return ``True`` if created, ``False`` if user declined.
-    """
+    """Full bootstrap workflow."""
     project_root = platform.project_root
     project_file = project_root / ".project"
 
-    # Step 1: skip if .project already exists
     if project_file.is_file():
         return True
 
-    # Step 2: derive project name
     project_name = derive_project_name(project_root)
+    api_keys = harvest_api_keys()
 
-    # Step 3: confirmation prompt
+    project_kv: OrderedDict[str, str] = OrderedDict()
+    project_kv[OCPP_PROJECT_NAME] = project_name
+    for key, value in api_keys.items():
+        project_kv[key] = value
+
     if confirm:
         print(f"\nCreating .project file at: {project_root / '.project'}\n")
-        print(f"  {OCPP_PROJECT_NAME}={project_name}")
+        masked_kv = mask_dict(project_kv)
+        for key, value in masked_kv.items():
+            print(f"  {key}={value}")
         print()
         answer = input("Proceed? [y/N] ").strip().lower()
         if answer not in ("y", "yes"):
             return False
 
-    # Step 4: check gitignore
     offer_gitignore_append(project_root)
 
-    # Step 5: build kv and write file
-    kv: OrderedDict[str, str] = OrderedDict()
-    kv[OCPP_PROJECT_NAME] = project_name
-
-    # Add comment header
     lines: list[LineRecord] = [
         LineRecord(line_type="comment", raw="# ocpp project file"),
     ]
 
-    serialize_project(project_file, kv, lines)
+    serialize_project(project_file, project_kv, lines)
 
-    # Step 6: set file permissions
     try:
         project_file.chmod(0o600)
     except Exception:

@@ -1,10 +1,9 @@
-"""Entry point for the ocpp CLI — orchestrates the full 6-step setup flow."""
+"""Entry point for the ocpp CLI — orchestrates the full setup flow."""
 
 from __future__ import annotations
 
 import argparse
 import dataclasses
-import os
 import sys
 from pathlib import Path
 
@@ -14,15 +13,26 @@ from rich.table import Table
 
 from ocpp.bootstrap import run_bootstrap
 from ocpp.env import load_env_file
-
 from ocpp.omo import OmoError, PresetInfo, discover_config, list_presets
 from ocpp.omo import set_preset as omo_set_preset
 from ocpp.platform import Platform, PlatformFamily
-from ocpp.project import OCPP_PROJECT_NAME, parse_project
+from ocpp.project import parse_project
 from ocpp.venv import detect_venv
 
 console = Console()
 err_console = Console(stderr=True)
+
+
+def _mask_sensitive_value(key: str, value: str | None) -> str:
+    """Mask sensitive values for logging."""
+    if value is None:
+        return "None"
+    sensitive_keys = ["key", "token", "secret"]
+    if any(k in key.lower() for k in sensitive_keys):
+        if len(value) > 8:
+            return f"{value[:4]}...{value[-4:]}"
+        return "..."
+    return value
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -48,13 +58,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _emit_env_commands(
     platform: Platform,
-    project_kv: dict[str, str],
+    final_env: dict[str, str],
     venv_delta: dict[str, str | None] | None,
 ) -> None:
     """Print shell-specific environment commands to stdout."""
-    # Combine project and venv environments
+    # Combine project/env and venv environments
     # venv_delta takes precedence
-    env = project_kv.copy()
+    env = final_env.copy()
     if venv_delta:
         for key, value in venv_delta.items():
             if value is None:
@@ -65,7 +75,6 @@ def _emit_env_commands(
     if platform.family is PlatformFamily.WINDOWS:
         # PowerShell syntax
         for key, value in env.items():
-            # In PowerShell, variables with null/empty value are removed
             if value:
                 print(f'$Env:{key}="{value}"')
             else:
@@ -74,7 +83,6 @@ def _emit_env_commands(
         # POSIX sh/bash/zsh syntax
         for key, value in env.items():
             if value:
-                # Basic shell escaping for values
                 escaped_value = value.replace("'", "'\\''")
                 print(f"export {key}='{escaped_value}'")
             else:
@@ -82,16 +90,10 @@ def _emit_env_commands(
 
 
 def main() -> int:
-    """Run the full ocpp CLI flow.
-
-
-    """
+    """Run the full ocpp CLI flow."""
     parser = _build_parser()
-
-    # Step 1: Parse args
     parsed = parser.parse_args()
 
-    # Step 2: Validate --project-dir
     project_root: Path
     if parsed.project_dir is not None:
         resolved = parsed.project_dir.resolve()
@@ -102,11 +104,19 @@ def main() -> int:
     else:
         project_root = Path.cwd().resolve()
 
-    # Step 3: Detect platform
     platform = Platform.detect()
     platform = dataclasses.replace(platform, project_root=project_root)
 
-    # Step 5: Load .project
+    # Load .env overrides first. If this file exists, it takes precedence.
+    env_overrides = load_env_file(project_root)
+    if env_overrides:
+        err_console.print(
+            f"[bold green]Found .env file:[/bold green] [yellow]{project_root / '.env'}[/yellow]. OMO preset selection will be skipped."
+        )
+    else:
+        err_console.print("[dim]No .env file found in project root. Skipping environment overrides.[/dim]")
+
+    # Load .project
     project_file = project_root / ".project"
     project_kv: dict[str, str] = {}
     try:
@@ -125,7 +135,18 @@ def main() -> int:
         )
         return 1
 
-    # Step 6: Detect venv
+    # Merge .env overrides into .project key-values (.env takes precedence)
+    for key, value in env_overrides.items():
+        if value is not None:
+            if key in project_kv:
+                old_value = project_kv.get(key)
+                err_console.print(
+                    f"[yellow]Overriding[/yellow] .env key '{key}': "
+                    f"{_mask_sensitive_value(key, old_value)} -> {_mask_sensitive_value(key, value)}"
+                )
+            project_kv[key] = value
+
+    # Detect venv
     venv_delta: dict[str, str | None] | None = None
     venv_result = detect_venv(platform)
     if venv_result is None:
@@ -138,110 +159,95 @@ def main() -> int:
         )
         venv_delta = venv_result.env_delta
 
-    # Step 7: List presets — discover config
-    global_config_path: Path | None = None
-    preset_infos: list[PresetInfo] = []
-    try:
-        global_config_path = discover_config(platform)
-    except FileNotFoundError:
-        err_console.print(
-            "[yellow]Warning:[/yellow] OMO config not found, skipping preset selection"
-        )
-
-    selected_preset: str | None = None
-    if global_config_path is not None:
-        _current_preset, preset_infos = list_presets(global_config_path)
-
-        # Display presets with rich table
-        current_preset_name = next(
-            (info.name for info in preset_infos if info.is_current), None
-        )
-        table_title = "Available OMO Presets"
-        if current_preset_name:
-            table_title += f" (Current: {current_preset_name})"
-        table = Table(title=table_title)
-        table.add_column("#", style="dim", width=4)
-        table.add_column("Preset Name", style="cyan")
-        table.add_column("Status", justify="center")
-        for idx, info in enumerate(preset_infos, start=1):
-            status = "[bold green]*[/bold green]" if info.is_current else ""
-            table.add_row(str(idx), info.name, status)
-        err_console.print(table)
-
-        # Step 8: Select preset
-        if parsed.preset is not None:
-            # Validate --preset
-            preset_names = {info.name for info in preset_infos}
-            if parsed.preset not in preset_names:
-                err_console.print(
-                    f"[red]Error:[/red] Preset '{parsed.preset}' not found.\n"
-                    f"  Available presets: {', '.join(sorted(preset_names))}"
-                )
-                return 1
-            selected_preset = parsed.preset
-        else:
-            # Find the index of the current preset
-            current_preset_index = next(
-                (idx for idx, info in enumerate(preset_infos) if info.is_current), None
+    # Skip OMO preset selection if .env file is active
+    if not env_overrides:
+        global_config_path: Path | None = None
+        try:
+            global_config_path = discover_config(platform)
+        except FileNotFoundError:
+            err_console.print(
+                "[yellow]Warning:[/yellow] OMO config not found, skipping preset selection"
             )
-            # Interactive selection via rich prompt (default to current preset)
-            try:
-                answer = Prompt.ask(
-                    "Select preset number (or leave empty to use current preset, q to quit)",
-                    default=str(current_preset_index + 1)
-                    if current_preset_index is not None
-                    else "",
-                    show_default=False,
-                )
-            except EOFError:
-                # Non-interactive environment (e.g., tests, CI)
-                answer = ""
-                err_console.print("[dim]Non-interactive mode: Using current preset.[/dim]")
 
-            if answer.strip().lower() == "q":
-                err_console.print("[dim]Preset selection cancelled.[/dim]")
-                return 0
-            elif answer.strip() == "":
-                selected_preset = None
-            else:
-                try:
-                    idx = int(answer.strip())
-                    if 1 <= idx <= len(preset_infos):
-                        selected_preset = preset_infos[idx - 1].name
-                    else:
-                        err_console.print(
-                            f"[red]Error:[/red] Invalid selection. Choose a number between 1 and {len(preset_infos)}."
-                        )
-                        return 1
-                except ValueError:
+        if global_config_path is not None:
+            _current_preset, preset_infos = list_presets(global_config_path)
+            current_preset_name = next(
+                (info.name for info in preset_infos if info.is_current), None
+            )
+            table_title = "Available OMO Presets"
+            if current_preset_name:
+                table_title += f" (Current: {current_preset_name})"
+            table = Table(title=table_title)
+            table.add_column("#", style="dim", width=4)
+            table.add_column("Preset Name", style="cyan")
+            table.add_column("Status", justify="center")
+            for idx, info in enumerate(preset_infos, start=1):
+                status = "[bold green]*[/bold green]" if info.is_current else ""
+                table.add_row(str(idx), info.name, status)
+            err_console.print(table)
+
+            selected_preset: str | None = None
+            if parsed.preset is not None:
+                preset_names = {info.name for info in preset_infos}
+                if parsed.preset not in preset_names:
                     err_console.print(
-                        "[red]Error:[/red] Invalid input. Enter a number, leave empty, or press q to quit."
+                        f"[red]Error:[/red] Preset '{parsed.preset}' not found.\n"
+                        f"  Available presets: {', '.join(sorted(preset_names))}"
                     )
                     return 1
-        # Step 9: Write preset
-        if selected_preset is not None:
-            try:
-                omo_set_preset(
-                    global_config_path,
-                    selected_preset,
-                    project_root,
-                    confirm=True,
+                selected_preset = parsed.preset
+            else:
+                current_preset_index = next(
+                    (idx for idx, info in enumerate(preset_infos) if info.is_current), None
                 )
-            except OmoError as exc:
-                err_console.print(f"[red]Error:[/red] {exc}")
-                return 1
+                try:
+                    answer = Prompt.ask(
+                        "Select preset number (or leave empty to use current preset, q to quit)",
+                        default=str(current_preset_index + 1)
+                        if current_preset_index is not None
+                        else "",
+                        show_default=False,
+                    )
+                except EOFError:
+                    answer = ""
+                    err_console.print("[dim]Non-interactive mode: Using current preset.[/dim]")
+
+                if answer.strip().lower() == "q":
+                    err_console.print("[dim]Preset selection cancelled.[/dim]")
+                    return 0
+                elif answer.strip() == "":
+                    selected_preset = None
+                else:
+                    try:
+                        idx = int(answer.strip())
+                        if 1 <= idx <= len(preset_infos):
+                            selected_preset = preset_infos[idx - 1].name
+                        else:
+                            err_console.print(
+                                f"[red]Error:[/red] Invalid selection. Choose a number between 1 and {len(preset_infos)}."
+                            )
+                            return 1
+                    except ValueError:
+                        err_console.print(
+                            "[red]Error:[/red] Invalid input. Enter a number, leave empty, or press q to quit."
+                        )
+                        return 1
+            if selected_preset is not None:
+                try:
+                    omo_set_preset(
+                        global_config_path,
+                        selected_preset,
+                        project_root,
+                        confirm=True,
+                    )
+                except OmoError as exc:
+                    err_console.print(f"[red]Error:[/red] {exc}")
+                    return 1
 
     # Final Step: Emit all environment commands to stdout
     _emit_env_commands(platform, project_kv, venv_delta)
     return 0
 
 
-
-
-
-
-
 if __name__ == "__main__":
-    # Guard against running inside OpenCode (e.g., recursive launch)
-
     sys.exit(main())
